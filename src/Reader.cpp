@@ -184,6 +184,29 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
                 errors = true;
                 break;
             } else {
+                // Adjust endianness for array elements during cache creation
+                uint32_t element_size = DataTypeSize(BaseDataType(type));
+
+                if (element_size > 1) {
+                    uint32_t array_length = array_size / element_size;
+
+                    // Verify array size is consistent
+                    if (array_length * element_size == array_size) [[likely]] {
+                        void* mutable_ptr = const_cast<void*>(static_cast<const void*>(read_ptr));
+                        switch (element_size) {
+                            case 2:
+                                AdjustArrayEndianess<2>(mutable_ptr, array_length);
+                                break;
+                            case 4:
+                                AdjustArrayEndianess<4>(mutable_ptr, array_length);
+                                break;
+                            case 8:
+                                AdjustArrayEndianess<8>(mutable_ptr, array_length);
+                                break;
+                        }
+                    }
+                }
+
                 read_ptr += array_size;
             }
         } else if (IsVectorType(type)) {
@@ -197,6 +220,21 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
             if (!CanAccessBuffer(read_ptr, buff_end, vector_size)) [[unlikely]] {
                 errors = true;
             } else {
+                // Adjust endianness for vector elements during cache creation
+                if (element_size > 1) {
+                    void* mutable_ptr = const_cast<void*>(static_cast<const void*>(read_ptr));
+                    switch (element_size) {
+                        case 2:
+                            AdjustArrayEndianess<2>(mutable_ptr, vector_length);
+                            break;
+                        case 4:
+                            AdjustArrayEndianess<4>(mutable_ptr, vector_length);
+                            break;
+                        case 8:
+                            AdjustArrayEndianess<8>(mutable_ptr, vector_length);
+                            break;
+                    }
+                }
                 read_ptr += vector_size;
             }
         } else if (IsPrimitiveType(type)) {
@@ -486,7 +524,7 @@ inline const Type* ObjectReader::ReadArray(const DataTag& tag, uint32_t& out_len
         constexpr uint32_t element_size = DataTypeSize(BaseDataType(expected_type));
         uint32_t array_length = out_size / element_size;
 
-        if (array_length * element_size != out_size) {
+        if (array_length * element_size != out_size) [[unlikely]] {
             out_length = 0;
             return nullptr;
         }
