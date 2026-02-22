@@ -67,6 +67,7 @@ ObjectReader::ObjectReader(const void* buffer, bool name_based) noexcept
     }
 
     std::memcpy(&m_size, buffer, sizeof(FieldSize));
+    AdjustEndianess(m_size);
     m_buffer = static_cast<const uint8_t*>(buffer) + sizeof(FieldSize);
 
     if (name_based) {
@@ -98,11 +99,12 @@ template <typename Type, bool swap_endianess = true>
 static inline bool ReadData(const uint8_t*& read_ptr, const uint8_t* end_ptr, Type& out_value) noexcept {
     if (CanAccessBuffer(read_ptr, end_ptr, sizeof(Type))) [[likely]] {
         std::memcpy(&out_value, read_ptr, sizeof(Type));
-        read_ptr += sizeof(Type);
 
         if constexpr (swap_endianess) {
             AdjustEndianess(out_value);
         }
+
+        read_ptr += sizeof(Type);
 
         return true;
     }
@@ -325,6 +327,7 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
         } else {
             DataTag::Id tag_id;
             std::memcpy(&tag_id, tag_ptr, sizeof(tag_id));
+            AdjustEndianess(tag_id);
             m_id_cache.emplace(tag_id, entry);
         }
     }
@@ -406,6 +409,7 @@ inline const void* ObjectReader::ReadPointerData(const DataTag& tag, DataType ex
     const uint8_t* value_ptr = static_cast<const uint8_t*>(entry.value.ptr);
 
     std::memcpy(&out_size, value_ptr, sizeof(out_size));
+    AdjustEndianess(out_size);
     value_ptr += sizeof(out_size);
 
     return value_ptr;
@@ -496,6 +500,7 @@ bool ObjectReader::ReadStringInternal(const CacheEntry& entry, std::string_view&
 
     uint16_t length;
     std::memcpy(&length, value_ptr, sizeof(length));
+    AdjustEndianess(length);
 
     const char* str_ptr = reinterpret_cast<const char*>(value_ptr + sizeof(length));
     out_value = std::string_view(str_ptr, length);
@@ -814,6 +819,7 @@ static inline FieldSize GetArraySize(const void* array) noexcept {
 
     FieldSize array_size;
     std::memcpy(&array_size, read_ptr, sizeof(array_size));
+    AdjustEndianess(array_size);
 
     return array_size;
 }
@@ -837,6 +843,7 @@ void ArrayReader<ElementSizeType>::Initialize() noexcept {
 
         ElementSizeType object_size;
         std::memcpy(&object_size, read_ptr, sizeof(object_size));
+        AdjustEndianess(object_size);
         read_ptr += sizeof(object_size);
 
         if (!CanAccessBuffer(read_ptr, buff_end, object_size)) {
@@ -939,6 +946,7 @@ void ArrayReader<ElementSizeType>::BaseIterator::Advance() noexcept {
     // Simple advancement - array was already validated
     ElementSizeType element_size;
     std::memcpy(&element_size, m_current_ptr, sizeof(element_size));
+    AdjustEndianess(element_size);
     m_current_ptr += sizeof(element_size) + element_size;
     m_index++;
 
@@ -952,6 +960,7 @@ template <typename ElementSizeType>
 const void* ArrayReader<ElementSizeType>::BaseIterator::CurrentElement(ElementSizeType* out_size) const noexcept {
     if (out_size) {
         std::memcpy(out_size, m_current_ptr, sizeof(ElementSizeType));
+        AdjustEndianess(*out_size);
     }
     return m_current_ptr;
 }

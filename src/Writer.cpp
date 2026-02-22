@@ -212,17 +212,17 @@ void ObjectWriter::FieldBoolean(const DataTag& tag, bool value) noexcept {
 
 void ObjectWriter::FieldFloat16(const DataTag& tag, uint16_t value) noexcept {
     m_writer.WriteFieldHeader(tag, DataType::Float16);
-    m_writer.WriteData<uint16_t, false>(value);
+    m_writer.WriteData<uint16_t>(value);
 }
 
 void ObjectWriter::FieldFloat32(const DataTag& tag, float value) noexcept {
     m_writer.WriteFieldHeader(tag, DataType::Float32);
-    m_writer.WriteData<uint32_t, false>(std::bit_cast<uint32_t>(value));
+    m_writer.WriteData<uint32_t>(std::bit_cast<uint32_t>(value));
 }
 
 void ObjectWriter::FieldFloat64(const DataTag& tag, double value) noexcept {
     m_writer.WriteFieldHeader(tag, DataType::Float64);
-    m_writer.WriteData<uint64_t, false>(std::bit_cast<uint64_t>(value));
+    m_writer.WriteData<uint64_t>(std::bit_cast<uint64_t>(value));
 }
 
 void ObjectWriter::FieldUUID(const DataTag& tag, const void* uuid) noexcept {

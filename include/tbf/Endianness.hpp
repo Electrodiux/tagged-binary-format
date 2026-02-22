@@ -31,18 +31,26 @@
 
 namespace tbf {
 
+constexpr std::endian TBF_ENDIANESS = std::endian::little;
+
 template <typename Type>
 [[gnu::always_inline]]
 inline void AdjustEndianess(Type& value) {
-    if constexpr (sizeof(Type) > 1 && std::endian::native == std::endian::big) {
-        value = std::byteswap(value);
+    if constexpr (std::endian::native != TBF_ENDIANESS) {
+        if constexpr (sizeof(Type) == 2) {
+            value = std::bit_cast<Type>(std::byteswap(std::bit_cast<uint16_t>(value)));
+        } else if constexpr (sizeof(Type) == 4) {
+            value = std::bit_cast<Type>(std::byteswap(std::bit_cast<uint32_t>(value)));
+        } else if constexpr (sizeof(Type) == 8) {
+            value = std::bit_cast<Type>(std::byteswap(std::bit_cast<uint64_t>(value)));
+        }
     }
 }
 
 template <uint32_t size>
     requires(size == 1 || size == 2 || size == 4 || size == 8)
 inline void AdjustArrayEndianess(void* data, size_t count) {
-    if constexpr (size > 1 && std::endian::native == std::endian::big) {
+    if constexpr (size > 1 && std::endian::native != TBF_ENDIANESS) {
         if constexpr (size == 2) {
             int16_t* int_data = static_cast<int16_t*>(data);
             for (size_t i = 0; i < count; ++i) {
