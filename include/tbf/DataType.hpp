@@ -26,7 +26,7 @@
 #pragma once
 
 #include <cstdint>
-#include <string_view>
+#include <type_traits>
 
 namespace tbf {
 
@@ -216,97 +216,6 @@ consteval DataType IntegerType() {
             case 4: return DataType::UInt32;
             case 8: return DataType::UInt64;
         }
-    }
-}
-
-inline constexpr std::string_view DataTypeName(DataType type) {
-    switch (type) {
-        case DataType::Int8: return "Int8";
-        case DataType::Int16: return "Int16";
-        case DataType::Int32: return "Int32";
-        case DataType::Int64: return "Int64";
-
-        case DataType::UInt8: return "UInt8";
-        case DataType::UInt16: return "UInt16";
-        case DataType::UInt32: return "UInt32";
-        case DataType::UInt64: return "UInt64";
-
-        case DataType::Boolean: return "Boolean";
-        case DataType::Float16: return "Float16";
-        case DataType::Float32: return "Float32";
-        case DataType::Float64: return "Float64";
-
-        case DataType::UUID: return "UUID";
-        case DataType::String: return "String";
-        case DataType::Binary: return "Binary";
-        case DataType::Object: return "Object";
-
-        case DataType::Vector2i8: return "Vector2i8";
-        case DataType::Vector2i16: return "Vector2i16";
-        case DataType::Vector2i32: return "Vector2i32";
-        case DataType::Vector2i64: return "Vector2i64";
-
-        case DataType::Vector2u8: return "Vector2u8";
-        case DataType::Vector2u16: return "Vector2u16";
-        case DataType::Vector2u32: return "Vector2u32";
-        case DataType::Vector2u64: return "Vector2u64";
-
-        case DataType::Vector2b: return "Vector2b";
-        case DataType::Vector2f16: return "Vector2f16";
-        case DataType::Vector2f32: return "Vector2f32";
-        case DataType::Vector2f64: return "Vector2f64";
-
-        case DataType::Vector3i8: return "Vector3i8";
-        case DataType::Vector3i16: return "Vector3i16";
-        case DataType::Vector3i32: return "Vector3i32";
-        case DataType::Vector3i64: return "Vector3i64";
-
-        case DataType::Vector3u8: return "Vector3u8";
-        case DataType::Vector3u16: return "Vector3u16";
-        case DataType::Vector3u32: return "Vector3u32";
-        case DataType::Vector3u64: return "Vector3u64";
-
-        case DataType::Vector3b: return "Vector3b";
-        case DataType::Vector3f16: return "Vector3f16";
-        case DataType::Vector3f32: return "Vector3f32";
-        case DataType::Vector3f64: return "Vector3f64";
-
-        case DataType::Vector4i8: return "Vector4i8";
-        case DataType::Vector4i16: return "Vector4i16";
-        case DataType::Vector4i32: return "Vector4i32";
-        case DataType::Vector4i64: return "Vector4i64";
-
-        case DataType::Vector4u8: return "Vector4u8";
-        case DataType::Vector4u16: return "Vector4u16";
-        case DataType::Vector4u32: return "Vector4u32";
-        case DataType::Vector4u64: return "Vector4u64";
-
-        case DataType::Vector4b: return "Vector4b";
-        case DataType::Vector4f16: return "Vector4f16";
-        case DataType::Vector4f32: return "Vector4f32";
-        case DataType::Vector4f64: return "Vector4f64";
-
-        case DataType::Int8Array: return "Int8Array";
-        case DataType::Int16Array: return "Int16Array";
-        case DataType::Int32Array: return "Int32Array";
-        case DataType::Int64Array: return "Int64Array";
-
-        case DataType::UInt8Array: return "UInt8Array";
-        case DataType::UInt16Array: return "UInt16Array";
-        case DataType::UInt32Array: return "UInt32Array";
-        case DataType::UInt64Array: return "UInt64Array";
-
-        case DataType::BooleanArray: return "BooleanArray";
-        case DataType::Float16Array: return "Float16Array";
-        case DataType::Float32Array: return "Float32Array";
-        case DataType::Float64Array: return "Float64Array";
-
-        case DataType::UUIDArray: return "UUIDArray";
-        case DataType::StringArray: return "StringArray";
-        case DataType::BinaryArray: return "BinaryArray";
-        case DataType::ObjectArray: return "ObjectArray";
-
-        default: return "Unknown";
     }
 }
 
