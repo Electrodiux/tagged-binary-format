@@ -301,120 +301,56 @@ class ObjectReader {
     // ---------------------------------
 
    private:
-    template <typename Type, DataType expected_array_type>
-    bool ReadArray(const DataTag& tag, const Type*& out_data, uint32_t& out_length) const noexcept;
+    template <typename Type, DataType expected_type>
+    const Type* ReadArray(const DataTag& tag, uint32_t& out_length) const noexcept;
 
    public:
-    bool ReadInt8Array(const DataTag& tag, const int8_t*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadInt16Array(const DataTag& tag, const int16_t*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadInt32Array(const DataTag& tag, const int32_t*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadInt64Array(const DataTag& tag, const int64_t*& out_data, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const int8_t* ReadInt8Array(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const int16_t* ReadInt16Array(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const int32_t* ReadInt32Array(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const int64_t* ReadInt64Array(const DataTag& tag, uint32_t& out_length) const noexcept;
 
-    bool ReadUInt8Array(const DataTag& tag, const uint8_t*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadUInt16Array(const DataTag& tag, const uint16_t*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadUInt32Array(const DataTag& tag, const uint32_t*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadUInt64Array(const DataTag& tag, const uint64_t*& out_data, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const uint8_t* ReadUInt8Array(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const uint16_t* ReadUInt16Array(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const uint32_t* ReadUInt32Array(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const uint64_t* ReadUInt64Array(const DataTag& tag, uint32_t& out_length) const noexcept;
 
-    bool ReadBooleanArray(const DataTag& tag, const bool*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadFloat16Array(const DataTag& tag, const uint16_t*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadFloat32Array(const DataTag& tag, const float*& out_data, uint32_t& out_length) const noexcept;
-    bool ReadFloat64Array(const DataTag& tag, const double*& out_data, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const bool* ReadBooleanArray(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const uint16_t* ReadFloat16Array(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const float* ReadFloat32Array(const DataTag& tag, uint32_t& out_length) const noexcept;
+    [[nodiscard]] const double* ReadFloat64Array(const DataTag& tag, uint32_t& out_length) const noexcept;
 
-    std::optional<StringArrayReader> ReadStringArray(const DataTag& tag) const noexcept;
-    std::optional<BinaryArrayReader> ReadBinaryArray(const DataTag& tag) const noexcept;
-    std::optional<ObjectArrayReader> ReadObjectArray(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::optional<StringArrayReader> ReadStringArray(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::optional<BinaryArrayReader> ReadBinaryArray(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::optional<ObjectArrayReader> ReadObjectArray(const DataTag& tag) const noexcept;
 
     // ---------------------------------
-    // Helper read std::optional methods
+    // Read array as std::span methods
     // ---------------------------------
 
-    [[nodiscard]]
-    inline std::span<const int8_t> ReadInt8Array(const DataTag& tag) const noexcept {
-        const int8_t* data;
-        uint32_t length;
-        return ReadInt8Array(tag, data, length) ? std::span<const int8_t>(data, length) : std::span<const int8_t>();
-    }
+   private:
+    template <typename Type, DataType expected_type>
+    std::span<const Type> ReadArray(const DataTag& tag) const noexcept;
 
-    [[nodiscard]]
-    inline std::span<const int16_t> ReadInt16Array(const DataTag& tag) const noexcept {
-        const int16_t* data;
-        uint32_t length;
-        return ReadInt16Array(tag, data, length) ? std::span<const int16_t>(data, length) : std::span<const int16_t>();
-    }
+   public:
+    [[nodiscard]] std::span<const int8_t> ReadInt8Array(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const int16_t> ReadInt16Array(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const int32_t> ReadInt32Array(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const int64_t> ReadInt64Array(const DataTag& tag) const noexcept;
 
-    [[nodiscard]]
-    inline std::span<const int32_t> ReadInt32Array(const DataTag& tag) const noexcept {
-        const int32_t* data;
-        uint32_t length;
-        return ReadInt32Array(tag, data, length) ? std::span<const int32_t>(data, length) : std::span<const int32_t>();
-    }
+    [[nodiscard]] std::span<const uint8_t> ReadUInt8Array(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const uint16_t> ReadUInt16Array(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const uint32_t> ReadUInt32Array(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const uint64_t> ReadUInt64Array(const DataTag& tag) const noexcept;
 
-    [[nodiscard]]
-    inline std::span<const int64_t> ReadInt64Array(const DataTag& tag) const noexcept {
-        const int64_t* data;
-        uint32_t length;
-        return ReadInt64Array(tag, data, length) ? std::span<const int64_t>(data, length) : std::span<const int64_t>();
-    }
-
-    [[nodiscard]]
-    inline std::span<const uint8_t> ReadUInt8Array(const DataTag& tag) const noexcept {
-        const uint8_t* data;
-        uint32_t length;
-        return ReadUInt8Array(tag, data, length) ? std::span<const uint8_t>(data, length) : std::span<const uint8_t>();
-    }
-
-    [[nodiscard]]
-    inline std::span<const uint16_t> ReadUInt16Array(const DataTag& tag) const noexcept {
-        const uint16_t* data;
-        uint32_t length;
-        return ReadUInt16Array(tag, data, length) ? std::span<const uint16_t>(data, length) : std::span<const uint16_t>();
-    }
-
-    [[nodiscard]]
-    inline std::span<const uint32_t> ReadUInt32Array(const DataTag& tag) const noexcept {
-        const uint32_t* data;
-        uint32_t length;
-        return ReadUInt32Array(tag, data, length) ? std::span<const uint32_t>(data, length) : std::span<const uint32_t>();
-    }
-
-    [[nodiscard]]
-    inline std::span<const uint64_t> ReadUInt64Array(const DataTag& tag) const noexcept {
-        const uint64_t* data;
-        uint32_t length;
-        return ReadUInt64Array(tag, data, length) ? std::span<const uint64_t>(data, length) : std::span<const uint64_t>();
-    }
-
-    [[nodiscard]]
-    inline std::span<const bool> ReadBooleanArray(const DataTag& tag) const noexcept {
-        const bool* data;
-        uint32_t length;
-        return ReadBooleanArray(tag, data, length) ? std::span<const bool>(data, length) : std::span<const bool>();
-    }
-
-    [[nodiscard]]
-    inline std::span<const uint16_t> ReadFloat16Array(const DataTag& tag) const noexcept {
-        const uint16_t* data;
-        uint32_t length;
-        return ReadFloat16Array(tag, data, length) ? std::span<const uint16_t>(data, length) : std::span<const uint16_t>();
-    }
-
-    [[nodiscard]]
-    inline std::span<const float> ReadFloat32Array(const DataTag& tag) const noexcept {
-        const float* data;
-        uint32_t length;
-        return ReadFloat32Array(tag, data, length) ? std::span<const float>(data, length) : std::span<const float>();
-    }
-
-    [[nodiscard]]
-    inline std::span<const double> ReadFloat64Array(const DataTag& tag) const noexcept {
-        const double* data;
-        uint32_t length;
-        return ReadFloat64Array(tag, data, length) ? std::span<const double>(data, length) : std::span<const double>();
-    }
+    [[nodiscard]] std::span<const bool> ReadBooleanArray(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const uint16_t> ReadFloat16Array(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const float> ReadFloat32Array(const DataTag& tag) const noexcept;
+    [[nodiscard]] std::span<const double> ReadFloat64Array(const DataTag& tag) const noexcept;
 
    private:
     bool ReadStringInternal(const CacheEntry& entry, std::string_view& out_value) const noexcept;
-    std::optional<ObjectReader> ReadObjectInternal(const CacheEntry& entry) const noexcept;
+    [[nodiscard]] std::optional<ObjectReader> ReadObjectInternal(const CacheEntry& entry) const noexcept;
 };
 
 template <typename ElementSizeType>
@@ -499,7 +435,7 @@ class StringArrayReader : public ArrayReader<uint16_t> {
             : BaseIterator(array, index, at_end) {}
 
        public:
-        std::string_view operator*() const noexcept;
+        value_type operator*() const noexcept;
 
         Iterator& operator++() noexcept {
             this->Advance();
@@ -542,27 +478,21 @@ class BinaryArrayReader : public ArrayReader<FieldSize> {
     friend class ObjectReader;
 
    public:
-    // TODO change binary element with std::span
-    struct BinaryElement {
-        const void* data;
-        FieldSize size;
-    };
-
     class Iterator : public ArrayReader<FieldSize>::BaseIterator {
        private:
         friend class BinaryArrayReader;
 
        public:
-        using value_type = BinaryElement;
-        using pointer = const BinaryElement*;
-        using reference = BinaryElement;
+        using value_type = std::span<const uint8_t>;
+        using pointer = const value_type*;
+        using reference = value_type;
 
        private:
         Iterator(const void* array, uint32_t index, bool at_end) noexcept
             : BaseIterator(array, index, at_end) {}
 
        public:
-        BinaryElement operator*() const noexcept;
+        value_type operator*() const noexcept;
 
         Iterator& operator++() noexcept {
             this->Advance();
@@ -619,7 +549,7 @@ class ObjectArrayReader : public ArrayReader<FieldSize> {
             : BaseIterator(array, index, at_end), m_name_based(name_based) {}
 
        public:
-        ObjectReader operator*() const noexcept;
+        value_type operator*() const noexcept;
 
         Iterator& operator++() noexcept {
             this->Advance();
