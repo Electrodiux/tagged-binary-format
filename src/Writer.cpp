@@ -27,6 +27,7 @@
 
 #include "tbf/DataTag.hpp"
 #include "tbf/DataType.hpp"
+#include "tbf/Endianness.hpp"
 
 #include <cstdint>
 #include <string_view>
@@ -258,7 +259,7 @@ inline void ObjectWriter::FieldArray(const DataTag& tag, DataType array_type, co
     m_writer.WriteData<FieldSize>(size);
     BufferOffset offset = m_writer.WriteData(data, size);
 
-    AdjustArrayEndianess(reinterpret_cast<Type*>(m_writer.GetBufferPointer(offset)), length);
+    AdjustArrayEndianess<sizeof(Type)>(m_writer.GetBufferPointer(offset), length);
 }
 
 void ObjectWriter::FieldArrayInt8(const DataTag& tag, const int8_t* data, uint32_t length) noexcept {

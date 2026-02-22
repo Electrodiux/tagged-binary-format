@@ -27,6 +27,7 @@
 
 #include "tbf/DataTag.hpp"
 #include "tbf/DataType.hpp"
+#include "tbf/Endianness.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -99,7 +100,7 @@ static inline bool ReadData(const uint8_t*& read_ptr, const uint8_t* end_ptr, Ty
         std::memcpy(&out_value, read_ptr, sizeof(Type));
         read_ptr += sizeof(Type);
 
-        if constexpr (sizeof(Type) > 1 && swap_endianess) {
+        if constexpr (swap_endianess) {
             AdjustEndianess(out_value);
         }
 

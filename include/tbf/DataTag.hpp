@@ -25,14 +25,13 @@
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <string_view>
 
 namespace tbf {
 
-constexpr uint32_t MAX_TAG_NAME_LENGTH = 255;
+constexpr uint32_t MAX_TAG_NAME_LENGTH = 0xFF;  // 255 characters
 
 inline consteval bool IsValidTagChar(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
@@ -128,34 +127,5 @@ class DataTag {
         return !(*this == other);
     }
 };
-
-template <typename Type>
-[[gnu::always_inline]]
-inline void AdjustEndianess(Type& value) {
-    if (std::endian::native == std::endian::big) {
-        value = std::byteswap(value);
-    }
-}
-
-template <typename Type>
-[[gnu::always_inline]]
-inline void AdjustArrayEndianess(Type* data, size_t count) {
-    if constexpr (sizeof(Type) > 1) {
-        if (std::endian::native == std::endian::big) {
-            for (size_t i = 0; i < count; ++i) {
-                if constexpr (sizeof(Type) == sizeof(int16_t)) {
-                    int16_t& value = reinterpret_cast<int16_t&>(data[i]);
-                    value = std::byteswap(value);
-                } else if constexpr (sizeof(Type) == sizeof(int32_t)) {
-                    int32_t& value = reinterpret_cast<int32_t&>(data[i]);
-                    value = std::byteswap(value);
-                } else if constexpr (sizeof(Type) == sizeof(int64_t)) {
-                    int64_t& value = reinterpret_cast<int64_t&>(data[i]);
-                    value = std::byteswap(value);
-                }
-            }
-        }
-    }
-}
 
 }  // namespace tbf
