@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -130,6 +131,59 @@ class ObjectWriter {
     void FieldBinaryArray(const DataTag& tag, const void* const* data, const uint32_t* sizes, uint32_t length) noexcept;
 
     [[nodiscard]] ObjectArrayWriter FieldObjectArray(const DataTag& tag) noexcept;
+
+    // ---------------------------------
+    // Array field with std::span
+    // ---------------------------------
+
+   public:
+    inline void FieldArrayInt8(const DataTag& tag, std::span<const int8_t> data) noexcept {
+        FieldArrayInt8(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayInt16(const DataTag& tag, std::span<const int16_t> data) noexcept {
+        FieldArrayInt16(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayInt32(const DataTag& tag, std::span<const int32_t> data) noexcept {
+        FieldArrayInt32(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayInt64(const DataTag& tag, std::span<const int64_t> data) noexcept {
+        FieldArrayInt64(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayUInt8(const DataTag& tag, std::span<const uint8_t> data) noexcept {
+        FieldArrayUInt8(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayUInt16(const DataTag& tag, std::span<const uint16_t> data) noexcept {
+        FieldArrayUInt16(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayUInt32(const DataTag& tag, std::span<const uint32_t> data) noexcept {
+        FieldArrayUInt32(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayUInt64(const DataTag& tag, std::span<const uint64_t> data) noexcept {
+        FieldArrayUInt64(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayBoolean(const DataTag& tag, std::span<const bool> data) noexcept {
+        FieldArrayBoolean(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayFloat16(const DataTag& tag, std::span<const uint16_t> data) noexcept {
+        FieldArrayFloat16(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayFloat32(const DataTag& tag, std::span<const float> data) noexcept {
+        FieldArrayFloat32(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayFloat64(const DataTag& tag, std::span<const double> data) noexcept {
+        FieldArrayFloat64(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
 };
 
 class ArrayWriter {

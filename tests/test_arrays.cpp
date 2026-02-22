@@ -208,6 +208,27 @@ TEST(ArraysTest, PointerAPIReadWrite) {
     EXPECT_EQ(non_existent_length, 0);
 }
 
+TEST(ArraysTest, ImplicitSTLArrayReadWrite) {
+    Writer writer(true);
+    auto& root = writer.RootObject();
+
+    std::vector<int32_t> data = {10, 20, 30, 40};
+    root.FieldArrayInt32(TAG_INT_ARRAY, data);
+
+    writer.Finish();
+
+    Reader reader(writer.Data(), writer.Size(), true);
+    const auto& read_root = reader.RootObject();
+
+    ASSERT_TRUE(read_root.IsValid());
+
+    std::span<const int32_t> int_array = read_root.ReadInt32Array(TAG_INT_ARRAY);
+    ASSERT_EQ(int_array.size(), data.size());
+    for (size_t i = 0; i < int_array.size(); i++) {
+        EXPECT_EQ(int_array[i], data[i]);
+    }
+}
+
 TEST(ArraysTest, EmptyArrays) {
     Writer writer(true);
     auto& root = writer.RootObject();
