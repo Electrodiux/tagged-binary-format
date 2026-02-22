@@ -632,6 +632,123 @@ std::span<const double> ObjectReader::ReadFloat64Array(const DataTag& tag) const
 }
 
 // ---------------------------------
+// Read vectors
+// ---------------------------------
+
+template <typename Type, uint32_t dim>
+    requires std::is_arithmetic<Type>::value && (dim >= 2) && (dim <= 4)
+[[gnu::always_inline]]
+inline Type* ObjectReader::ReadVector(const DataTag& tag, DataType type) const noexcept {
+    CacheEntry entry;
+    if (!FindTag(tag, entry) || entry.type != type) {
+        return nullptr;
+    }
+    return reinterpret_cast<Type*>(const_cast<void*>(entry.value.ptr));
+}
+
+// Vector 2
+
+int8_t* ObjectReader::ReadVector2i8(const DataTag& tag) const noexcept {
+    return ReadVector<int8_t, 2>(tag, DataType::Vector2i8);
+}
+
+int16_t* ObjectReader::ReadVector2i16(const DataTag& tag) const noexcept {
+    return ReadVector<int16_t, 2>(tag, DataType::Vector2i16);
+}
+
+int32_t* ObjectReader::ReadVector2i32(const DataTag& tag) const noexcept {
+    return ReadVector<int32_t, 2>(tag, DataType::Vector2i32);
+}
+
+int64_t* ObjectReader::ReadVector2i64(const DataTag& tag) const noexcept {
+    return ReadVector<int64_t, 2>(tag, DataType::Vector2i64);
+}
+
+bool* ObjectReader::ReadVector2b(const DataTag& tag) const noexcept {
+    return ReadVector<bool, 2>(tag, DataType::Vector2b);
+}
+
+uint16_t* ObjectReader::ReadVector2f16(const DataTag& tag) const noexcept {
+    return ReadVector<uint16_t, 2>(tag, DataType::Vector2f16);
+}
+
+float* ObjectReader::ReadVector2f32(const DataTag& tag) const noexcept {
+    return ReadVector<float, 2>(tag, DataType::Vector2f32);
+}
+
+double* ObjectReader::ReadVector2f64(const DataTag& tag) const noexcept {
+    return ReadVector<double, 2>(tag, DataType::Vector2f64);
+}
+
+// Vector 3
+
+int8_t* ObjectReader::ReadVector3i8(const DataTag& tag) const noexcept {
+    return ReadVector<int8_t, 3>(tag, DataType::Vector3i8);
+}
+
+int16_t* ObjectReader::ReadVector3i16(const DataTag& tag) const noexcept {
+    return ReadVector<int16_t, 3>(tag, DataType::Vector3i16);
+}
+
+int32_t* ObjectReader::ReadVector3i32(const DataTag& tag) const noexcept {
+    return ReadVector<int32_t, 3>(tag, DataType::Vector3i32);
+}
+
+int64_t* ObjectReader::ReadVector3i64(const DataTag& tag) const noexcept {
+    return ReadVector<int64_t, 3>(tag, DataType::Vector3i64);
+}
+
+bool* ObjectReader::ReadVector3b(const DataTag& tag) const noexcept {
+    return ReadVector<bool, 3>(tag, DataType::Vector3b);
+}
+
+uint16_t* ObjectReader::ReadVector3f16(const DataTag& tag) const noexcept {
+    return ReadVector<uint16_t, 3>(tag, DataType::Vector3f16);
+}
+
+float* ObjectReader::ReadVector3f32(const DataTag& tag) const noexcept {
+    return ReadVector<float, 3>(tag, DataType::Vector3f32);
+}
+
+double* ObjectReader::ReadVector3f64(const DataTag& tag) const noexcept {
+    return ReadVector<double, 3>(tag, DataType::Vector3f64);
+}
+
+// Vector 4
+
+int8_t* ObjectReader::ReadVector4i8(const DataTag& tag) const noexcept {
+    return ReadVector<int8_t, 4>(tag, DataType::Vector4i8);
+}
+
+int16_t* ObjectReader::ReadVector4i16(const DataTag& tag) const noexcept {
+    return ReadVector<int16_t, 4>(tag, DataType::Vector4i16);
+}
+
+int32_t* ObjectReader::ReadVector4i32(const DataTag& tag) const noexcept {
+    return ReadVector<int32_t, 4>(tag, DataType::Vector4i32);
+}
+
+int64_t* ObjectReader::ReadVector4i64(const DataTag& tag) const noexcept {
+    return ReadVector<int64_t, 4>(tag, DataType::Vector4i64);
+}
+
+bool* ObjectReader::ReadVector4b(const DataTag& tag) const noexcept {
+    return ReadVector<bool, 4>(tag, DataType::Vector4b);
+}
+
+uint16_t* ObjectReader::ReadVector4f16(const DataTag& tag) const noexcept {
+    return ReadVector<uint16_t, 4>(tag, DataType::Vector4f16);
+}
+
+float* ObjectReader::ReadVector4f32(const DataTag& tag) const noexcept {
+    return ReadVector<float, 4>(tag, DataType::Vector4f32);
+}
+
+double* ObjectReader::ReadVector4f64(const DataTag& tag) const noexcept {
+    return ReadVector<double, 4>(tag, DataType::Vector4f64);
+}
+
+// ---------------------------------
 // Array readers
 // ---------------------------------
 

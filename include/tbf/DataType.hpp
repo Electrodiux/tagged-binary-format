@@ -79,11 +79,6 @@ enum class DataType : uint8_t {
     Vector2i32 = Vector2 | Int32,
     Vector2i64 = Vector2 | Int64,
 
-    Vector2u8 = Vector2 | UInt8,
-    Vector2u16 = Vector2 | UInt16,
-    Vector2u32 = Vector2 | UInt32,
-    Vector2u64 = Vector2 | UInt64,
-
     Vector2b = Vector2 | Boolean,
     Vector2f16 = Vector2 | Float16,
     Vector2f32 = Vector2 | Float32,
@@ -96,11 +91,6 @@ enum class DataType : uint8_t {
     Vector3i32 = Vector3 | Int32,
     Vector3i64 = Vector3 | Int64,
 
-    Vector3u8 = Vector3 | UInt8,
-    Vector3u16 = Vector3 | UInt16,
-    Vector3u32 = Vector3 | UInt32,
-    Vector3u64 = Vector3 | UInt64,
-
     Vector3b = Vector3 | Boolean,
     Vector3f16 = Vector3 | Float16,
     Vector3f32 = Vector3 | Float32,
@@ -112,11 +102,6 @@ enum class DataType : uint8_t {
     Vector4i16 = Vector4 | Int16,
     Vector4i32 = Vector4 | Int32,
     Vector4i64 = Vector4 | Int64,
-
-    Vector4u8 = Vector4 | UInt8,
-    Vector4u16 = Vector4 | UInt16,
-    Vector4u32 = Vector4 | UInt32,
-    Vector4u64 = Vector4 | UInt64,
 
     Vector4b = Vector4 | Boolean,
     Vector4f16 = Vector4 | Float16,
@@ -145,6 +130,9 @@ enum class DataType : uint8_t {
     BinaryArray = Array | Binary,
     ObjectArray = Array | Object,
 
+    // Error value
+
+    Invalid = 0xFF
 };
 
 inline constexpr DataType TypeClassification(DataType type) {

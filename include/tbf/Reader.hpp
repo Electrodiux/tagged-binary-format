@@ -358,6 +358,52 @@ class ObjectReader {
    private:
     bool ReadStringInternal(const CacheEntry& entry, std::string_view& out_value) const noexcept;
     [[nodiscard]] std::optional<ObjectReader> ReadObjectInternal(const CacheEntry& entry) const noexcept;
+
+    // ---------------------------------
+    // Read vectors
+    // ---------------------------------
+
+   private:
+    template <typename Type, uint32_t dim>
+        requires std::is_arithmetic<Type>::value && (dim >= 2) && (dim <= 4)
+    Type* ReadVector(const DataTag& tag, DataType type) const noexcept;
+
+   public:
+    // Vector 2
+
+    int8_t* ReadVector2i8(const DataTag& tag) const noexcept;
+    int16_t* ReadVector2i16(const DataTag& tag) const noexcept;
+    int32_t* ReadVector2i32(const DataTag& tag) const noexcept;
+    int64_t* ReadVector2i64(const DataTag& tag) const noexcept;
+
+    bool* ReadVector2b(const DataTag& tag) const noexcept;
+    uint16_t* ReadVector2f16(const DataTag& tag) const noexcept;
+    float* ReadVector2f32(const DataTag& tag) const noexcept;
+    double* ReadVector2f64(const DataTag& tag) const noexcept;
+
+    // Vector 3
+
+    int8_t* ReadVector3i8(const DataTag& tag) const noexcept;
+    int16_t* ReadVector3i16(const DataTag& tag) const noexcept;
+    int32_t* ReadVector3i32(const DataTag& tag) const noexcept;
+    int64_t* ReadVector3i64(const DataTag& tag) const noexcept;
+
+    bool* ReadVector3b(const DataTag& tag) const noexcept;
+    uint16_t* ReadVector3f16(const DataTag& tag) const noexcept;
+    float* ReadVector3f32(const DataTag& tag) const noexcept;
+    double* ReadVector3f64(const DataTag& tag) const noexcept;
+
+    // Vector 4
+
+    int8_t* ReadVector4i8(const DataTag& tag) const noexcept;
+    int16_t* ReadVector4i16(const DataTag& tag) const noexcept;
+    int32_t* ReadVector4i32(const DataTag& tag) const noexcept;
+    int64_t* ReadVector4i64(const DataTag& tag) const noexcept;
+
+    bool* ReadVector4b(const DataTag& tag) const noexcept;
+    uint16_t* ReadVector4f16(const DataTag& tag) const noexcept;
+    float* ReadVector4f32(const DataTag& tag) const noexcept;
+    double* ReadVector4f64(const DataTag& tag) const noexcept;
 };
 
 template <typename ElementSizeType>
