@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -91,6 +92,7 @@ class ObjectWriter {
     void FieldFloat32(const DataTag& tag, float value) noexcept;
     void FieldFloat64(const DataTag& tag, double value) noexcept;
 
+    void FieldUUID(const DataTag& tag, const void* uuid) noexcept;
     void FieldString(const DataTag& tag, std::string_view value) noexcept;
     void FieldBinary(const DataTag& tag, const void* data, size_t size) noexcept;
     [[nodiscard]] ObjectWriter FieldObject(const DataTag& tag) noexcept;
@@ -130,6 +132,153 @@ class ObjectWriter {
     void FieldBinaryArray(const DataTag& tag, const void* const* data, const uint32_t* sizes, uint32_t length) noexcept;
 
     [[nodiscard]] ObjectArrayWriter FieldObjectArray(const DataTag& tag) noexcept;
+
+    // ---------------------------------
+    // Array field with std::span
+    // ---------------------------------
+
+   public:
+    inline void FieldArrayInt8(const DataTag& tag, std::span<const int8_t> data) noexcept {
+        FieldArrayInt8(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayInt16(const DataTag& tag, std::span<const int16_t> data) noexcept {
+        FieldArrayInt16(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayInt32(const DataTag& tag, std::span<const int32_t> data) noexcept {
+        FieldArrayInt32(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayInt64(const DataTag& tag, std::span<const int64_t> data) noexcept {
+        FieldArrayInt64(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayUInt8(const DataTag& tag, std::span<const uint8_t> data) noexcept {
+        FieldArrayUInt8(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayUInt16(const DataTag& tag, std::span<const uint16_t> data) noexcept {
+        FieldArrayUInt16(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayUInt32(const DataTag& tag, std::span<const uint32_t> data) noexcept {
+        FieldArrayUInt32(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayUInt64(const DataTag& tag, std::span<const uint64_t> data) noexcept {
+        FieldArrayUInt64(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayBoolean(const DataTag& tag, std::span<const bool> data) noexcept {
+        FieldArrayBoolean(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayFloat16(const DataTag& tag, std::span<const uint16_t> data) noexcept {
+        FieldArrayFloat16(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayFloat32(const DataTag& tag, std::span<const float> data) noexcept {
+        FieldArrayFloat32(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    inline void FieldArrayFloat64(const DataTag& tag, std::span<const double> data) noexcept {
+        FieldArrayFloat64(tag, data.data(), static_cast<uint32_t>(data.size()));
+    }
+
+    // ---------------------------------
+    // Field vectors
+    // ---------------------------------
+
+   private:
+    template <typename Type, uint32_t dim>
+        requires std::is_arithmetic<Type>::value && (dim >= 2) && (dim <= 4)
+    void FieldVector(const DataTag& tag, DataType vector_type, const Type* data) noexcept;
+
+   public:
+    // Vector 2
+
+    void FieldVector2i8(const DataTag& tag, const int8_t* data) noexcept;
+    void FieldVector2i16(const DataTag& tag, const int16_t* data) noexcept;
+    void FieldVector2i32(const DataTag& tag, const int32_t* data) noexcept;
+    void FieldVector2i64(const DataTag& tag, const int64_t* data) noexcept;
+
+    inline void FieldVector2i8(const DataTag& tag, const uint8_t* data) noexcept {
+        FieldVector2i8(tag, reinterpret_cast<const int8_t*>(data));
+    }
+
+    inline void FieldVector2i16(const DataTag& tag, const uint16_t* data) noexcept {
+        FieldVector2i16(tag, reinterpret_cast<const int16_t*>(data));
+    }
+
+    inline void FieldVector2i32(const DataTag& tag, const uint32_t* data) noexcept {
+        FieldVector2i32(tag, reinterpret_cast<const int32_t*>(data));
+    }
+
+    inline void FieldVector2i64(const DataTag& tag, const uint64_t* data) noexcept {
+        FieldVector2i64(tag, reinterpret_cast<const int64_t*>(data));
+    }
+
+    void FieldVector2b(const DataTag& tag, const bool* data) noexcept;
+    void FieldVector2f16(const DataTag& tag, const uint16_t* data) noexcept;
+    void FieldVector2f32(const DataTag& tag, const float* data) noexcept;
+    void FieldVector2f64(const DataTag& tag, const double* data) noexcept;
+
+    // Vector 3
+
+    void FieldVector3i8(const DataTag& tag, const int8_t* data) noexcept;
+    void FieldVector3i16(const DataTag& tag, const int16_t* data) noexcept;
+    void FieldVector3i32(const DataTag& tag, const int32_t* data) noexcept;
+    void FieldVector3i64(const DataTag& tag, const int64_t* data) noexcept;
+
+    inline void FieldVector3i8(const DataTag& tag, const uint8_t* data) noexcept {
+        FieldVector3i8(tag, reinterpret_cast<const int8_t*>(data));
+    }
+
+    inline void FieldVector3i16(const DataTag& tag, const uint16_t* data) noexcept {
+        FieldVector3i16(tag, reinterpret_cast<const int16_t*>(data));
+    }
+
+    inline void FieldVector3i32(const DataTag& tag, const uint32_t* data) noexcept {
+        FieldVector3i32(tag, reinterpret_cast<const int32_t*>(data));
+    }
+
+    inline void FieldVector3i64(const DataTag& tag, const uint64_t* data) noexcept {
+        FieldVector3i64(tag, reinterpret_cast<const int64_t*>(data));
+    }
+
+    void FieldVector3b(const DataTag& tag, const bool* data) noexcept;
+    void FieldVector3f16(const DataTag& tag, const uint16_t* data) noexcept;
+    void FieldVector3f32(const DataTag& tag, const float* data) noexcept;
+    void FieldVector3f64(const DataTag& tag, const double* data) noexcept;
+
+    // Vector 4
+
+    void FieldVector4i8(const DataTag& tag, const int8_t* data) noexcept;
+    void FieldVector4i16(const DataTag& tag, const int16_t* data) noexcept;
+    void FieldVector4i32(const DataTag& tag, const int32_t* data) noexcept;
+    void FieldVector4i64(const DataTag& tag, const int64_t* data) noexcept;
+
+    inline void FieldVector4i8(const DataTag& tag, const uint8_t* data) noexcept {
+        FieldVector4i8(tag, reinterpret_cast<const int8_t*>(data));
+    }
+
+    inline void FieldVector4i16(const DataTag& tag, const uint16_t* data) noexcept {
+        FieldVector4i16(tag, reinterpret_cast<const int16_t*>(data));
+    }
+
+    inline void FieldVector4i32(const DataTag& tag, const uint32_t* data) noexcept {
+        FieldVector4i32(tag, reinterpret_cast<const int32_t*>(data));
+    }
+
+    inline void FieldVector4i64(const DataTag& tag, const uint64_t* data) noexcept {
+        FieldVector4i64(tag, reinterpret_cast<const int64_t*>(data));
+    }
+
+    void FieldVector4b(const DataTag& tag, const bool* data) noexcept;
+    void FieldVector4f16(const DataTag& tag, const uint16_t* data) noexcept;
+    void FieldVector4f32(const DataTag& tag, const float* data) noexcept;
+    void FieldVector4f64(const DataTag& tag, const double* data) noexcept;
 };
 
 class ArrayWriter {

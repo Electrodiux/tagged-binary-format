@@ -29,6 +29,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+
 using namespace tbf;
 
 namespace {
@@ -45,6 +47,8 @@ constexpr DataTag TAG_FLOAT = "float";
 constexpr DataTag TAG_DOUBLE = "double";
 constexpr DataTag TAG_BOOL = "bool";
 constexpr DataTag TAG_STRING = "string";
+constexpr DataTag TAG_BINARY = "binary";
+constexpr DataTag TAG_UUID = "uuid";
 
 }  // namespace
 
@@ -238,6 +242,63 @@ TEST(BasicTypesTest, StringReadWrite) {
     auto value = read_root.ReadString(TAG_STRING);
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(value.value(), "Hello, TBF!");
+}
+
+TEST(BasicTypesTest, BinaryReadWrite) {
+    Writer writer(true);
+    auto& root = writer.RootObject();
+
+    uint8_t binary_data[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE};
+    root.FieldBinary(TAG_BINARY, binary_data, sizeof(binary_data));
+
+    writer.Finish();
+
+    Reader reader(writer.Data(), writer.Size(), true);
+    const auto& read_root = reader.RootObject();
+
+    ASSERT_TRUE(read_root.IsValid());
+
+    // Raw pointer API
+
+    FieldSize read_size;
+    const void* read_data = read_root.ReadBinary(TAG_BINARY, read_size);
+    ASSERT_TRUE(read_data != nullptr);
+    ASSERT_EQ(read_size, sizeof(binary_data));
+
+    const uint8_t* read_bytes = static_cast<const uint8_t*>(read_data);
+    for (size_t i = 0; i < sizeof(binary_data); i++) {
+        EXPECT_EQ(read_bytes[i], binary_data[i]);
+    }
+
+    // std::span API
+
+    auto binary_span = read_root.ReadBinary(TAG_BINARY);
+    ASSERT_TRUE(binary_span.data() != nullptr);
+    ASSERT_EQ(binary_span.size(), sizeof(binary_data));
+}
+
+TEST(BasicTypesTest, UUIDReadWrite) {
+    Writer writer(true);
+    auto& root = writer.RootObject();
+
+    // UUID v3 for www.electrodiux.com
+    // 2b0978d7-0dc9-37ea-94e8-ddd399ffc6c2
+    uint8_t uuid_data[] = {0x2b, 0x09, 0x78, 0xd7, 0x0d, 0xc9, 0x37, 0xea, 0x94, 0xe8, 0xdd, 0xd3, 0x99, 0xff, 0xc6, 0xc2};
+    root.FieldUUID(TAG_UUID, uuid_data);
+
+    writer.Finish();
+
+    Reader reader(writer.Data(), writer.Size(), true);
+    const auto& read_root = reader.RootObject();
+
+    ASSERT_TRUE(read_root.IsValid());
+
+    const uint8_t* read_uuid = static_cast<const uint8_t*>(read_root.ReadUUID(TAG_UUID));
+    ASSERT_TRUE(read_uuid != nullptr);
+
+    for (size_t i = 0; i < 16; i++) {
+        EXPECT_EQ(read_uuid[i], uuid_data[i]);
+    }
 }
 
 TEST(BasicTypesTest, AllTypesReadWrite) {

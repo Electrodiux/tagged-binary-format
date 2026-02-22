@@ -27,10 +27,12 @@
 
 #include "tbf/DataTag.hpp"
 #include "tbf/DataType.hpp"
+#include "tbf/Endianness.hpp"
 
 #include <cstdint>
 #include <cstring>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -65,6 +67,7 @@ ObjectReader::ObjectReader(const void* buffer, bool name_based) noexcept
     }
 
     std::memcpy(&m_size, buffer, sizeof(FieldSize));
+    AdjustEndianess(m_size);
     m_buffer = static_cast<const uint8_t*>(buffer) + sizeof(FieldSize);
 
     if (name_based) {
@@ -96,11 +99,12 @@ template <typename Type, bool swap_endianess = true>
 static inline bool ReadData(const uint8_t*& read_ptr, const uint8_t* end_ptr, Type& out_value) noexcept {
     if (CanAccessBuffer(read_ptr, end_ptr, sizeof(Type))) [[likely]] {
         std::memcpy(&out_value, read_ptr, sizeof(Type));
-        read_ptr += sizeof(Type);
 
-        if constexpr (sizeof(Type) > 1 && swap_endianess) {
+        if constexpr (swap_endianess) {
             AdjustEndianess(out_value);
         }
+
+        read_ptr += sizeof(Type);
 
         return true;
     }
@@ -182,6 +186,29 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
                 errors = true;
                 break;
             } else {
+                // Adjust endianness for array elements during cache creation
+                uint32_t element_size = DataTypeSize(BaseDataType(type));
+
+                if (element_size > 1) {
+                    uint32_t array_length = array_size / element_size;
+
+                    // Verify array size is consistent
+                    if (array_length * element_size == array_size) [[likely]] {
+                        void* mutable_ptr = const_cast<void*>(static_cast<const void*>(read_ptr));
+                        switch (element_size) {
+                            case 2:
+                                AdjustArrayEndianess<2>(mutable_ptr, array_length);
+                                break;
+                            case 4:
+                                AdjustArrayEndianess<4>(mutable_ptr, array_length);
+                                break;
+                            case 8:
+                                AdjustArrayEndianess<8>(mutable_ptr, array_length);
+                                break;
+                        }
+                    }
+                }
+
                 read_ptr += array_size;
             }
         } else if (IsVectorType(type)) {
@@ -195,6 +222,21 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
             if (!CanAccessBuffer(read_ptr, buff_end, vector_size)) [[unlikely]] {
                 errors = true;
             } else {
+                // Adjust endianness for vector elements during cache creation
+                if (element_size > 1) {
+                    void* mutable_ptr = const_cast<void*>(static_cast<const void*>(read_ptr));
+                    switch (element_size) {
+                        case 2:
+                            AdjustArrayEndianess<2>(mutable_ptr, vector_length);
+                            break;
+                        case 4:
+                            AdjustArrayEndianess<4>(mutable_ptr, vector_length);
+                            break;
+                        case 8:
+                            AdjustArrayEndianess<8>(mutable_ptr, vector_length);
+                            break;
+                    }
+                }
                 read_ptr += vector_size;
             }
         } else if (IsPrimitiveType(type)) {
@@ -228,7 +270,15 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
                         errors = true;
                     }
                     break;
+                case DataType::UUID:
+                    entry.value.ptr = read_ptr;
 
+                    if (!CanAccessBuffer(read_ptr, buff_end, 16)) [[unlikely]] {
+                        errors = true;
+                    } else {
+                        read_ptr += 16;
+                    }
+                    break;
                 case DataType::String: {
                     entry.value.ptr = read_ptr;
 
@@ -277,6 +327,7 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
         } else {
             DataTag::Id tag_id;
             std::memcpy(&tag_id, tag_ptr, sizeof(tag_id));
+            AdjustEndianess(tag_id);
             m_id_cache.emplace(tag_id, entry);
         }
     }
@@ -349,20 +400,19 @@ inline bool ObjectReader::ReadPrimitive(const DataTag& tag, Type& out_value) con
 }
 
 [[gnu::always_inline]]
-inline bool ObjectReader::ReadPointerData(const DataTag& tag, DataType expected_type, const void*& out_data, FieldSize& out_size) const noexcept {
+inline const void* ObjectReader::ReadPointerData(const DataTag& tag, DataType expected_type, FieldSize& out_size) const noexcept {
     CacheEntry entry;
     if (!FindTag(tag, entry) || entry.type != expected_type) {
-        return false;
+        return nullptr;
     }
 
     const uint8_t* value_ptr = static_cast<const uint8_t*>(entry.value.ptr);
 
     std::memcpy(&out_size, value_ptr, sizeof(out_size));
+    AdjustEndianess(out_size);
     value_ptr += sizeof(out_size);
 
-    out_data = value_ptr;
-
-    return true;
+    return value_ptr;
 }
 
 bool ObjectReader::ReadInt8(const DataTag& tag, int8_t& out_value) const noexcept {
@@ -421,8 +471,16 @@ bool ObjectReader::ReadString(const DataTag& tag, std::string_view& out_value) c
     return ReadStringInternal(entry, out_value);
 }
 
-bool ObjectReader::ReadBinary(const DataTag& tag, const void*& out_data, FieldSize& out_size) const noexcept {
-    return ReadPointerData(tag, DataType::Binary, out_data, out_size);
+const void* ObjectReader::ReadBinary(const DataTag& tag, FieldSize& out_size) const noexcept {
+    return ReadPointerData(tag, DataType::Binary, out_size);
+}
+
+const void* ObjectReader::ReadUUID(const DataTag& tag) const noexcept {
+    CacheEntry entry;
+    if (!FindTag(tag, entry) || entry.type != DataType::UUID) {
+        return nullptr;
+    }
+    return entry.value.ptr;
 }
 
 std::optional<ObjectReader> ObjectReader::ReadObject(const DataTag& tag) const noexcept {
@@ -442,6 +500,7 @@ bool ObjectReader::ReadStringInternal(const CacheEntry& entry, std::string_view&
 
     uint16_t length;
     std::memcpy(&length, value_ptr, sizeof(length));
+    AdjustEndianess(length);
 
     const char* str_ptr = reinterpret_cast<const char*>(value_ptr + sizeof(length));
     out_value = std::string_view(str_ptr, length);
@@ -460,75 +519,75 @@ std::optional<ObjectReader> ObjectReader::ReadObjectInternal(const CacheEntry& e
 // Read arrays
 // ---------------------------------
 
-template <typename Type, DataType expected_array_type>
+template <typename Type, DataType expected_type>
 [[gnu::always_inline]]
-inline bool ObjectReader::ReadArray(const DataTag& tag, const Type*& out_data, uint32_t& out_length) const noexcept {
+inline const Type* ObjectReader::ReadArray(const DataTag& tag, uint32_t& out_length) const noexcept {
     FieldSize out_size;
-    const void* value_ptr;
+    const void* value_ptr = ReadPointerData(tag, expected_type, out_size);
 
-    bool result = ReadPointerData(tag, expected_array_type, value_ptr, out_size);
-
-    if (result) {
-        constexpr uint32_t element_size = DataTypeSize(BaseDataType(expected_array_type));
+    if (value_ptr != nullptr) {
+        constexpr uint32_t element_size = DataTypeSize(BaseDataType(expected_type));
         uint32_t array_length = out_size / element_size;
 
-        if (array_length * element_size != out_size) {
-            return false;
+        if (array_length * element_size != out_size) [[unlikely]] {
+            out_length = 0;
+            return nullptr;
         }
 
-        out_data = reinterpret_cast<const Type*>(value_ptr);
         out_length = array_length;
+        return reinterpret_cast<const Type*>(value_ptr);
     }
 
-    return result;
+    out_length = 0;
+    return nullptr;
 }
 
-bool ObjectReader::ReadInt8Array(const DataTag& tag, const int8_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<int8_t, DataType::Int8Array>(tag, out_data, out_length);
+const int8_t* ObjectReader::ReadInt8Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<int8_t, DataType::Int8Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadInt16Array(const DataTag& tag, const int16_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<int16_t, DataType::Int16Array>(tag, out_data, out_length);
+const int16_t* ObjectReader::ReadInt16Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<int16_t, DataType::Int16Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadInt32Array(const DataTag& tag, const int32_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<int32_t, DataType::Int32Array>(tag, out_data, out_length);
+const int32_t* ObjectReader::ReadInt32Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<int32_t, DataType::Int32Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadInt64Array(const DataTag& tag, const int64_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<int64_t, DataType::Int64Array>(tag, out_data, out_length);
+const int64_t* ObjectReader::ReadInt64Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<int64_t, DataType::Int64Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadUInt8Array(const DataTag& tag, const uint8_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<uint8_t, DataType::UInt8Array>(tag, out_data, out_length);
+const uint8_t* ObjectReader::ReadUInt8Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<uint8_t, DataType::UInt8Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadUInt16Array(const DataTag& tag, const uint16_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<uint16_t, DataType::UInt16Array>(tag, out_data, out_length);
+const uint16_t* ObjectReader::ReadUInt16Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<uint16_t, DataType::UInt16Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadUInt32Array(const DataTag& tag, const uint32_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<uint32_t, DataType::UInt32Array>(tag, out_data, out_length);
+const uint32_t* ObjectReader::ReadUInt32Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<uint32_t, DataType::UInt32Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadUInt64Array(const DataTag& tag, const uint64_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<uint64_t, DataType::UInt64Array>(tag, out_data, out_length);
+const uint64_t* ObjectReader::ReadUInt64Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<uint64_t, DataType::UInt64Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadBooleanArray(const DataTag& tag, const bool*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<bool, DataType::BooleanArray>(tag, out_data, out_length);
+const bool* ObjectReader::ReadBooleanArray(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<bool, DataType::BooleanArray>(tag, out_length);
 }
 
-bool ObjectReader::ReadFloat16Array(const DataTag& tag, const uint16_t*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<uint16_t, DataType::Float16Array>(tag, out_data, out_length);
+const uint16_t* ObjectReader::ReadFloat16Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<uint16_t, DataType::Float16Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadFloat32Array(const DataTag& tag, const float*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<float, DataType::Float32Array>(tag, out_data, out_length);
+const float* ObjectReader::ReadFloat32Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<float, DataType::Float32Array>(tag, out_length);
 }
 
-bool ObjectReader::ReadFloat64Array(const DataTag& tag, const double*& out_data, uint32_t& out_length) const noexcept {
-    return ReadArray<double, DataType::Float64Array>(tag, out_data, out_length);
+const double* ObjectReader::ReadFloat64Array(const DataTag& tag, uint32_t& out_length) const noexcept {
+    return ReadArray<double, DataType::Float64Array>(tag, out_length);
 }
 
 std::optional<StringArrayReader> ObjectReader::ReadStringArray(const DataTag& tag) const noexcept {
@@ -553,6 +612,183 @@ std::optional<ObjectArrayReader> ObjectReader::ReadObjectArray(const DataTag& ta
         return std::nullopt;
     }
     return std::make_optional<ObjectArrayReader>(entry, m_name_based);
+}
+
+// ---------------------------------
+// Read array as std::span methods
+// ---------------------------------
+
+template <typename Type, DataType expected_type>
+[[gnu::always_inline]]
+inline std::span<const Type> ObjectReader::ReadArray(const DataTag& tag) const noexcept {
+    uint32_t length;
+    const Type* data = ReadArray<Type, expected_type>(tag, length);
+    return data ? std::span<const Type>(data, length) : std::span<const Type>();
+}
+
+std::span<const int8_t> ObjectReader::ReadInt8Array(const DataTag& tag) const noexcept {
+    return ReadArray<int8_t, DataType::Int8Array>(tag);
+}
+
+std::span<const int16_t> ObjectReader::ReadInt16Array(const DataTag& tag) const noexcept {
+    return ReadArray<int16_t, DataType::Int16Array>(tag);
+}
+
+std::span<const int32_t> ObjectReader::ReadInt32Array(const DataTag& tag) const noexcept {
+    return ReadArray<int32_t, DataType::Int32Array>(tag);
+}
+
+std::span<const int64_t> ObjectReader::ReadInt64Array(const DataTag& tag) const noexcept {
+    return ReadArray<int64_t, DataType::Int64Array>(tag);
+}
+
+std::span<const uint8_t> ObjectReader::ReadUInt8Array(const DataTag& tag) const noexcept {
+    return ReadArray<uint8_t, DataType::UInt8Array>(tag);
+}
+
+std::span<const uint16_t> ObjectReader::ReadUInt16Array(const DataTag& tag) const noexcept {
+    return ReadArray<uint16_t, DataType::UInt16Array>(tag);
+}
+
+std::span<const uint32_t> ObjectReader::ReadUInt32Array(const DataTag& tag) const noexcept {
+    return ReadArray<uint32_t, DataType::UInt32Array>(tag);
+}
+
+std::span<const uint64_t> ObjectReader::ReadUInt64Array(const DataTag& tag) const noexcept {
+    return ReadArray<uint64_t, DataType::UInt64Array>(tag);
+}
+
+std::span<const bool> ObjectReader::ReadBooleanArray(const DataTag& tag) const noexcept {
+    return ReadArray<bool, DataType::BooleanArray>(tag);
+}
+
+std::span<const uint16_t> ObjectReader::ReadFloat16Array(const DataTag& tag) const noexcept {
+    return ReadArray<uint16_t, DataType::Float16Array>(tag);
+}
+
+std::span<const float> ObjectReader::ReadFloat32Array(const DataTag& tag) const noexcept {
+    return ReadArray<float, DataType::Float32Array>(tag);
+}
+
+std::span<const double> ObjectReader::ReadFloat64Array(const DataTag& tag) const noexcept {
+    return ReadArray<double, DataType::Float64Array>(tag);
+}
+
+// ---------------------------------
+// Read vectors
+// ---------------------------------
+
+template <typename Type, uint32_t dim>
+    requires std::is_arithmetic<Type>::value && (dim >= 2) && (dim <= 4)
+[[gnu::always_inline]]
+inline Type* ObjectReader::ReadVector(const DataTag& tag, DataType type) const noexcept {
+    CacheEntry entry;
+    if (!FindTag(tag, entry) || entry.type != type) {
+        return nullptr;
+    }
+    return reinterpret_cast<Type*>(const_cast<void*>(entry.value.ptr));
+}
+
+// Vector 2
+
+int8_t* ObjectReader::ReadVector2i8(const DataTag& tag) const noexcept {
+    return ReadVector<int8_t, 2>(tag, DataType::Vector2i8);
+}
+
+int16_t* ObjectReader::ReadVector2i16(const DataTag& tag) const noexcept {
+    return ReadVector<int16_t, 2>(tag, DataType::Vector2i16);
+}
+
+int32_t* ObjectReader::ReadVector2i32(const DataTag& tag) const noexcept {
+    return ReadVector<int32_t, 2>(tag, DataType::Vector2i32);
+}
+
+int64_t* ObjectReader::ReadVector2i64(const DataTag& tag) const noexcept {
+    return ReadVector<int64_t, 2>(tag, DataType::Vector2i64);
+}
+
+bool* ObjectReader::ReadVector2b(const DataTag& tag) const noexcept {
+    return ReadVector<bool, 2>(tag, DataType::Vector2b);
+}
+
+uint16_t* ObjectReader::ReadVector2f16(const DataTag& tag) const noexcept {
+    return ReadVector<uint16_t, 2>(tag, DataType::Vector2f16);
+}
+
+float* ObjectReader::ReadVector2f32(const DataTag& tag) const noexcept {
+    return ReadVector<float, 2>(tag, DataType::Vector2f32);
+}
+
+double* ObjectReader::ReadVector2f64(const DataTag& tag) const noexcept {
+    return ReadVector<double, 2>(tag, DataType::Vector2f64);
+}
+
+// Vector 3
+
+int8_t* ObjectReader::ReadVector3i8(const DataTag& tag) const noexcept {
+    return ReadVector<int8_t, 3>(tag, DataType::Vector3i8);
+}
+
+int16_t* ObjectReader::ReadVector3i16(const DataTag& tag) const noexcept {
+    return ReadVector<int16_t, 3>(tag, DataType::Vector3i16);
+}
+
+int32_t* ObjectReader::ReadVector3i32(const DataTag& tag) const noexcept {
+    return ReadVector<int32_t, 3>(tag, DataType::Vector3i32);
+}
+
+int64_t* ObjectReader::ReadVector3i64(const DataTag& tag) const noexcept {
+    return ReadVector<int64_t, 3>(tag, DataType::Vector3i64);
+}
+
+bool* ObjectReader::ReadVector3b(const DataTag& tag) const noexcept {
+    return ReadVector<bool, 3>(tag, DataType::Vector3b);
+}
+
+uint16_t* ObjectReader::ReadVector3f16(const DataTag& tag) const noexcept {
+    return ReadVector<uint16_t, 3>(tag, DataType::Vector3f16);
+}
+
+float* ObjectReader::ReadVector3f32(const DataTag& tag) const noexcept {
+    return ReadVector<float, 3>(tag, DataType::Vector3f32);
+}
+
+double* ObjectReader::ReadVector3f64(const DataTag& tag) const noexcept {
+    return ReadVector<double, 3>(tag, DataType::Vector3f64);
+}
+
+// Vector 4
+
+int8_t* ObjectReader::ReadVector4i8(const DataTag& tag) const noexcept {
+    return ReadVector<int8_t, 4>(tag, DataType::Vector4i8);
+}
+
+int16_t* ObjectReader::ReadVector4i16(const DataTag& tag) const noexcept {
+    return ReadVector<int16_t, 4>(tag, DataType::Vector4i16);
+}
+
+int32_t* ObjectReader::ReadVector4i32(const DataTag& tag) const noexcept {
+    return ReadVector<int32_t, 4>(tag, DataType::Vector4i32);
+}
+
+int64_t* ObjectReader::ReadVector4i64(const DataTag& tag) const noexcept {
+    return ReadVector<int64_t, 4>(tag, DataType::Vector4i64);
+}
+
+bool* ObjectReader::ReadVector4b(const DataTag& tag) const noexcept {
+    return ReadVector<bool, 4>(tag, DataType::Vector4b);
+}
+
+uint16_t* ObjectReader::ReadVector4f16(const DataTag& tag) const noexcept {
+    return ReadVector<uint16_t, 4>(tag, DataType::Vector4f16);
+}
+
+float* ObjectReader::ReadVector4f32(const DataTag& tag) const noexcept {
+    return ReadVector<float, 4>(tag, DataType::Vector4f32);
+}
+
+double* ObjectReader::ReadVector4f64(const DataTag& tag) const noexcept {
+    return ReadVector<double, 4>(tag, DataType::Vector4f64);
 }
 
 // ---------------------------------
@@ -583,6 +819,7 @@ static inline FieldSize GetArraySize(const void* array) noexcept {
 
     FieldSize array_size;
     std::memcpy(&array_size, read_ptr, sizeof(array_size));
+    AdjustEndianess(array_size);
 
     return array_size;
 }
@@ -606,6 +843,7 @@ void ArrayReader<ElementSizeType>::Initialize() noexcept {
 
         ElementSizeType object_size;
         std::memcpy(&object_size, read_ptr, sizeof(object_size));
+        AdjustEndianess(object_size);
         read_ptr += sizeof(object_size);
 
         if (!CanAccessBuffer(read_ptr, buff_end, object_size)) {
@@ -708,6 +946,7 @@ void ArrayReader<ElementSizeType>::BaseIterator::Advance() noexcept {
     // Simple advancement - array was already validated
     ElementSizeType element_size;
     std::memcpy(&element_size, m_current_ptr, sizeof(element_size));
+    AdjustEndianess(element_size);
     m_current_ptr += sizeof(element_size) + element_size;
     m_index++;
 
@@ -721,6 +960,7 @@ template <typename ElementSizeType>
 const void* ArrayReader<ElementSizeType>::BaseIterator::CurrentElement(ElementSizeType* out_size) const noexcept {
     if (out_size) {
         std::memcpy(out_size, m_current_ptr, sizeof(ElementSizeType));
+        AdjustEndianess(*out_size);
     }
     return m_current_ptr;
 }
@@ -731,11 +971,11 @@ std::string_view StringArrayReader::Iterator::operator*() const noexcept {
     return std::string_view(reinterpret_cast<const char*>(ptr) + sizeof(size), size);
 }
 
-BinaryArrayReader::BinaryElement BinaryArrayReader::Iterator::operator*() const noexcept {
+std::span<const uint8_t> BinaryArrayReader::Iterator::operator*() const noexcept {
     FieldSize size;
     const void* ptr = this->CurrentElement(&size);
     const uint8_t* data_ptr = static_cast<const uint8_t*>(ptr) + sizeof(size);
-    return {data_ptr, size};
+    return std::span<const uint8_t>(data_ptr, size);
 }
 
 ObjectReader ObjectArrayReader::Iterator::operator*() const noexcept {

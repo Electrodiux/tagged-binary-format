@@ -26,7 +26,7 @@
 #pragma once
 
 #include <cstdint>
-#include <string_view>
+#include <type_traits>
 
 namespace tbf {
 
@@ -79,11 +79,6 @@ enum class DataType : uint8_t {
     Vector2i32 = Vector2 | Int32,
     Vector2i64 = Vector2 | Int64,
 
-    Vector2u8 = Vector2 | UInt8,
-    Vector2u16 = Vector2 | UInt16,
-    Vector2u32 = Vector2 | UInt32,
-    Vector2u64 = Vector2 | UInt64,
-
     Vector2b = Vector2 | Boolean,
     Vector2f16 = Vector2 | Float16,
     Vector2f32 = Vector2 | Float32,
@@ -96,11 +91,6 @@ enum class DataType : uint8_t {
     Vector3i32 = Vector3 | Int32,
     Vector3i64 = Vector3 | Int64,
 
-    Vector3u8 = Vector3 | UInt8,
-    Vector3u16 = Vector3 | UInt16,
-    Vector3u32 = Vector3 | UInt32,
-    Vector3u64 = Vector3 | UInt64,
-
     Vector3b = Vector3 | Boolean,
     Vector3f16 = Vector3 | Float16,
     Vector3f32 = Vector3 | Float32,
@@ -112,11 +102,6 @@ enum class DataType : uint8_t {
     Vector4i16 = Vector4 | Int16,
     Vector4i32 = Vector4 | Int32,
     Vector4i64 = Vector4 | Int64,
-
-    Vector4u8 = Vector4 | UInt8,
-    Vector4u16 = Vector4 | UInt16,
-    Vector4u32 = Vector4 | UInt32,
-    Vector4u64 = Vector4 | UInt64,
 
     Vector4b = Vector4 | Boolean,
     Vector4f16 = Vector4 | Float16,
@@ -145,6 +130,9 @@ enum class DataType : uint8_t {
     BinaryArray = Array | Binary,
     ObjectArray = Array | Object,
 
+    // Error value
+
+    Invalid = 0xFF
 };
 
 inline constexpr DataType TypeClassification(DataType type) {
@@ -216,97 +204,6 @@ consteval DataType IntegerType() {
             case 4: return DataType::UInt32;
             case 8: return DataType::UInt64;
         }
-    }
-}
-
-inline constexpr std::string_view DataTypeName(DataType type) {
-    switch (type) {
-        case DataType::Int8: return "Int8";
-        case DataType::Int16: return "Int16";
-        case DataType::Int32: return "Int32";
-        case DataType::Int64: return "Int64";
-
-        case DataType::UInt8: return "UInt8";
-        case DataType::UInt16: return "UInt16";
-        case DataType::UInt32: return "UInt32";
-        case DataType::UInt64: return "UInt64";
-
-        case DataType::Boolean: return "Boolean";
-        case DataType::Float16: return "Float16";
-        case DataType::Float32: return "Float32";
-        case DataType::Float64: return "Float64";
-
-        case DataType::UUID: return "UUID";
-        case DataType::String: return "String";
-        case DataType::Binary: return "Binary";
-        case DataType::Object: return "Object";
-
-        case DataType::Vector2i8: return "Vector2i8";
-        case DataType::Vector2i16: return "Vector2i16";
-        case DataType::Vector2i32: return "Vector2i32";
-        case DataType::Vector2i64: return "Vector2i64";
-
-        case DataType::Vector2u8: return "Vector2u8";
-        case DataType::Vector2u16: return "Vector2u16";
-        case DataType::Vector2u32: return "Vector2u32";
-        case DataType::Vector2u64: return "Vector2u64";
-
-        case DataType::Vector2b: return "Vector2b";
-        case DataType::Vector2f16: return "Vector2f16";
-        case DataType::Vector2f32: return "Vector2f32";
-        case DataType::Vector2f64: return "Vector2f64";
-
-        case DataType::Vector3i8: return "Vector3i8";
-        case DataType::Vector3i16: return "Vector3i16";
-        case DataType::Vector3i32: return "Vector3i32";
-        case DataType::Vector3i64: return "Vector3i64";
-
-        case DataType::Vector3u8: return "Vector3u8";
-        case DataType::Vector3u16: return "Vector3u16";
-        case DataType::Vector3u32: return "Vector3u32";
-        case DataType::Vector3u64: return "Vector3u64";
-
-        case DataType::Vector3b: return "Vector3b";
-        case DataType::Vector3f16: return "Vector3f16";
-        case DataType::Vector3f32: return "Vector3f32";
-        case DataType::Vector3f64: return "Vector3f64";
-
-        case DataType::Vector4i8: return "Vector4i8";
-        case DataType::Vector4i16: return "Vector4i16";
-        case DataType::Vector4i32: return "Vector4i32";
-        case DataType::Vector4i64: return "Vector4i64";
-
-        case DataType::Vector4u8: return "Vector4u8";
-        case DataType::Vector4u16: return "Vector4u16";
-        case DataType::Vector4u32: return "Vector4u32";
-        case DataType::Vector4u64: return "Vector4u64";
-
-        case DataType::Vector4b: return "Vector4b";
-        case DataType::Vector4f16: return "Vector4f16";
-        case DataType::Vector4f32: return "Vector4f32";
-        case DataType::Vector4f64: return "Vector4f64";
-
-        case DataType::Int8Array: return "Int8Array";
-        case DataType::Int16Array: return "Int16Array";
-        case DataType::Int32Array: return "Int32Array";
-        case DataType::Int64Array: return "Int64Array";
-
-        case DataType::UInt8Array: return "UInt8Array";
-        case DataType::UInt16Array: return "UInt16Array";
-        case DataType::UInt32Array: return "UInt32Array";
-        case DataType::UInt64Array: return "UInt64Array";
-
-        case DataType::BooleanArray: return "BooleanArray";
-        case DataType::Float16Array: return "Float16Array";
-        case DataType::Float32Array: return "Float32Array";
-        case DataType::Float64Array: return "Float64Array";
-
-        case DataType::UUIDArray: return "UUIDArray";
-        case DataType::StringArray: return "StringArray";
-        case DataType::BinaryArray: return "BinaryArray";
-        case DataType::ObjectArray: return "ObjectArray";
-
-        default: return "Unknown";
     }
 }
 
