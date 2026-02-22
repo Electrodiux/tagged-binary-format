@@ -92,6 +92,7 @@ class ObjectWriter {
     void FieldFloat32(const DataTag& tag, float value) noexcept;
     void FieldFloat64(const DataTag& tag, double value) noexcept;
 
+    void FieldUUID(const DataTag& tag, const void* uuid) noexcept;
     void FieldString(const DataTag& tag, std::string_view value) noexcept;
     void FieldBinary(const DataTag& tag, const void* data, size_t size) noexcept;
     [[nodiscard]] ObjectWriter FieldObject(const DataTag& tag) noexcept;

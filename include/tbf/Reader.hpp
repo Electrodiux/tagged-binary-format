@@ -170,7 +170,7 @@ class ObjectReader {
    private:
     template <typename Type, DataType expected_type>
     bool ReadPrimitive(const DataTag& tag, Type& out_value) const noexcept;
-    bool ReadPointerData(const DataTag& tag, DataType expected_type, const void*& out_data, FieldSize& out_size) const noexcept;
+    const void* ReadPointerData(const DataTag& tag, DataType expected_type, FieldSize& out_size) const noexcept;
 
    public:
     bool ReadInt8(const DataTag& tag, int8_t& out_value) const noexcept;
@@ -189,10 +189,10 @@ class ObjectReader {
     bool ReadFloat64(const DataTag& tag, double& out_value) const noexcept;
 
     bool ReadString(const DataTag& tag, std::string_view& out_value) const noexcept;
-    bool ReadBinary(const DataTag& tag, const void*& out_data, FieldSize& out_size) const noexcept;
 
-    [[nodiscard]]
-    std::optional<ObjectReader> ReadObject(const DataTag& tag) const noexcept;
+    [[nodiscard]] const void* ReadUUID(const DataTag& tag) const noexcept;
+    [[nodiscard]] const void* ReadBinary(const DataTag& tag, FieldSize& out_size) const noexcept;
+    [[nodiscard]] std::optional<ObjectReader> ReadObject(const DataTag& tag) const noexcept;
 
     template <typename Enum>
         requires std::is_enum<Enum>::value
@@ -202,7 +202,7 @@ class ObjectReader {
     }
 
     // ---------------------------------
-    // Helper read std::optional methods
+    // Helper read methods
     // ---------------------------------
 
    public:
@@ -282,6 +282,13 @@ class ObjectReader {
     inline std::optional<std::string_view> ReadString(const DataTag& tag) const noexcept {
         std::string_view value;
         return ReadString(tag, value) ? std::optional<std::string_view>(value) : std::nullopt;
+    }
+
+    [[nodiscard]]
+    inline std::span<const uint8_t> ReadBinary(const DataTag& tag) const noexcept {
+        uint32_t size;
+        const void* data = ReadBinary(tag, size);
+        return data ? std::span<const uint8_t>(static_cast<const uint8_t*>(data), size) : std::span<const uint8_t>();
     }
 
     template <typename Enum>

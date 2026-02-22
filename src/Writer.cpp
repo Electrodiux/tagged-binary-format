@@ -224,6 +224,11 @@ void ObjectWriter::FieldFloat64(const DataTag& tag, double value) noexcept {
     m_writer.WriteData<uint64_t, false>(std::bit_cast<uint64_t>(value));
 }
 
+void ObjectWriter::FieldUUID(const DataTag& tag, const void* uuid) noexcept {
+    m_writer.WriteFieldHeader(tag, DataType::UUID);
+    m_writer.WriteData(uuid, 16);
+}
+
 void ObjectWriter::FieldString(const DataTag& tag, std::string_view value) noexcept {
     m_writer.WriteFieldHeader(tag, DataType::String);
     m_writer.WriteString(value);

@@ -229,7 +229,15 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
                         errors = true;
                     }
                     break;
+                case DataType::UUID:
+                    entry.value.ptr = read_ptr;
 
+                    if (!CanAccessBuffer(read_ptr, buff_end, 16)) [[unlikely]] {
+                        errors = true;
+                    } else {
+                        read_ptr += 16;
+                    }
+                    break;
                 case DataType::String: {
                     entry.value.ptr = read_ptr;
 
@@ -350,10 +358,10 @@ inline bool ObjectReader::ReadPrimitive(const DataTag& tag, Type& out_value) con
 }
 
 [[gnu::always_inline]]
-inline bool ObjectReader::ReadPointerData(const DataTag& tag, DataType expected_type, const void*& out_data, FieldSize& out_size) const noexcept {
+inline const void* ObjectReader::ReadPointerData(const DataTag& tag, DataType expected_type, FieldSize& out_size) const noexcept {
     CacheEntry entry;
     if (!FindTag(tag, entry) || entry.type != expected_type) {
-        return false;
+        return nullptr;
     }
 
     const uint8_t* value_ptr = static_cast<const uint8_t*>(entry.value.ptr);
@@ -361,9 +369,7 @@ inline bool ObjectReader::ReadPointerData(const DataTag& tag, DataType expected_
     std::memcpy(&out_size, value_ptr, sizeof(out_size));
     value_ptr += sizeof(out_size);
 
-    out_data = value_ptr;
-
-    return true;
+    return value_ptr;
 }
 
 bool ObjectReader::ReadInt8(const DataTag& tag, int8_t& out_value) const noexcept {
@@ -422,8 +428,16 @@ bool ObjectReader::ReadString(const DataTag& tag, std::string_view& out_value) c
     return ReadStringInternal(entry, out_value);
 }
 
-bool ObjectReader::ReadBinary(const DataTag& tag, const void*& out_data, FieldSize& out_size) const noexcept {
-    return ReadPointerData(tag, DataType::Binary, out_data, out_size);
+const void* ObjectReader::ReadBinary(const DataTag& tag, FieldSize& out_size) const noexcept {
+    return ReadPointerData(tag, DataType::Binary, out_size);
+}
+
+const void* ObjectReader::ReadUUID(const DataTag& tag) const noexcept {
+    CacheEntry entry;
+    if (!FindTag(tag, entry) || entry.type != DataType::UUID) {
+        return nullptr;
+    }
+    return entry.value.ptr;
 }
 
 std::optional<ObjectReader> ObjectReader::ReadObject(const DataTag& tag) const noexcept {
@@ -465,11 +479,9 @@ template <typename Type, DataType expected_type>
 [[gnu::always_inline]]
 inline const Type* ObjectReader::ReadArray(const DataTag& tag, uint32_t& out_length) const noexcept {
     FieldSize out_size;
-    const void* value_ptr;
+    const void* value_ptr = ReadPointerData(tag, expected_type, out_size);
 
-    bool result = ReadPointerData(tag, expected_type, value_ptr, out_size);
-
-    if (result) {
+    if (value_ptr != nullptr) {
         constexpr uint32_t element_size = DataTypeSize(BaseDataType(expected_type));
         uint32_t array_length = out_size / element_size;
 
@@ -479,7 +491,6 @@ inline const Type* ObjectReader::ReadArray(const DataTag& tag, uint32_t& out_len
         }
 
         out_length = array_length;
-
         return reinterpret_cast<const Type*>(value_ptr);
     }
 
