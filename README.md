@@ -17,6 +17,11 @@ A high-performance C++ binary serialization library with tagged fields, designed
 - **Binary**: Raw binary data
 - **Objects**: Nested object structures
 - **Arrays**: Arrays of any supported type
+- **Vectors**: Fixed-size 2D, 3D, and 4D vectors
+
+## Format Specification
+
+For detailed information about the binary format, field types, and encoding specifications, see [FORMAT.md](docs/FORMAT.md).
 
 ## Building
 
