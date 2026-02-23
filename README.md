@@ -65,7 +65,7 @@ project(YourProject)
 set(CMAKE_CXX_STANDARD 23)
 
 # Add TBF as subdirectory
-set(TBF_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(TBF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/tbf)
 
 # Your executable
@@ -81,13 +81,30 @@ target_link_libraries(your_app PRIVATE tbf)
 ```cpp
 #include <tbf/Writer.hpp>
 #include <tbf/Reader.hpp>
-#include <tbf/DataTag.hpp>
+
+#include <iostream>
 
 int main() {
-    tbf::Writer writer(true);
+    bool name_based = true;
+
+    tbf::Writer writer(name_based);
     auto& root = writer.RootObject();
     root.FieldString("message", "Hello, TBF!");
     writer.Finish();
+
+    tbf::Reader reader(writer.Data(), writer.Size(), name_based);
+    const auto& read_root = reader.RootObject();
+
+    if (read_root.IsValid()) {
+        std::optional<std::string_view> message = read_root.ReadString("message");
+        if (message.has_value()) {
+            std::cout << "Message: " << message.value() << std::endl;
+        } else {
+            std::cout << "Failed to read 'message' field." << std::endl;
+        }
+    } else {
+        std::cout << "Root object is not valid." << std::endl;
+    }
     
     return 0;
 }
