@@ -68,7 +68,7 @@ Bit Layout: CCCC BBBB
 | Value | Category | Type Group |
 |-------|----------|------------|
 | `0b00xx` | Signed Integer | Int8, Int16, Int32, Int64 |
-| `0b01xx` | Unsigned Integer | UInt8, UInt16, UInt32, UInt64 |
+| `0b01xx` | *Reserved* | Reserved for future use |
 | `0b10xx` | Floating Point / Boolean | Boolean, Float16, Float32, Float64 |
 | `0b11xx` | Non-Primitive | UUID, String, Binary, Object |
 
@@ -76,18 +76,12 @@ Bit Layout: CCCC BBBB
 
 #### Primitive Types (Raw)
 
-> ⚠️ **DEPRECATION NOTICE**: Unsigned integer types (UInt8, UInt16, UInt32, UInt64) may be discontinued in future versions of TBF. It is recommended to use signed integer types (Int8, Int16, Int32, Int64) for both signed and unsigned values to ensure forward compatibility.
-
 | Type ID | Name | Size | Description |
 |---------|------|------|-------------|
 | `0x00` | Int8 | 1 byte | Signed 8-bit integer |
 | `0x01` | Int16 | 2 bytes | Signed 16-bit integer |
 | `0x02` | Int32 | 4 bytes | Signed 32-bit integer |
 | `0x03` | Int64 | 8 bytes | Signed 64-bit integer |
-| `0x04` | UInt8 | 1 byte | Unsigned 8-bit integer ⚠️ |
-| `0x05` | UInt16 | 2 bytes | Unsigned 16-bit integer ⚠️ |
-| `0x06` | UInt32 | 4 bytes | Unsigned 32-bit integer ⚠️ |
-| `0x07` | UInt64 | 8 bytes | Unsigned 64-bit integer ⚠️ |
 | `0x08` | Boolean | 1 byte | Boolean value (0 or 1) |
 | `0x09` | Float16 | 2 bytes | 16-bit floating point |
 | `0x0A` | Float32 | 4 bytes | 32-bit floating point |
@@ -111,7 +105,7 @@ Vectors are fixed-size collections of 2, 3, or 4 elements of the same primitive 
 
 Arrays are dynamic-length collections with a size prefix.
 
-**Fixed-Size Element Arrays** (`0xA0-0xAC`): Int8Array, Int16Array, Int32Array, Int64Array, UInt8Array, UInt16Array, UInt32Array, UInt64Array, BooleanArray, Float16Array, Float32Array, Float64Array, UUIDArray
+**Fixed-Size Element Arrays** (`0xA0-0xA8`): Int8Array, Int16Array, Int32Array, Int64Array, BooleanArray, Float16Array, Float32Array, Float64Array, UUIDArray
 
 **Variable-Size Element Arrays** (`0xAD-0xAF`): StringArray, BinaryArray, ObjectArray
 
@@ -420,14 +414,10 @@ Within a single object, tag names or IDs must be unique. **The behavior when dup
 ## Endianness
 
 **All multi-byte values use little-endian byte order**, including:
-- Object sizes (u32)
-- Array element sizes (u32)
-- Binary sizes (u32)
-- String lengths (u16)
-- Tag IDs (u16)
-- Numeric values (int16, int32, int64, uint16, uint32, uint64, float32, float64)
+- **Multi-byte values**: Object sizes (u32), Array element sizes (u32), Binary sizes (u32), String lengths (u16), Tag IDs (u16)
+- **Numeric values**: int16, int32, int64, float32, float64
 
-Single-byte values (int8, uint8, bool, type bytes) do not require byte swapping.
+Single-byte values (int8, bool, type bytes) do not require byte swapping.
 
 ---
 
