@@ -57,7 +57,6 @@ void Writer::SetBufferGrowSize(uint32_t grow_size) noexcept {
 // Writing methods
 // ---------------------------------
 
-[[gnu::always_inline]]
 inline void Writer::ReserveBuffer(size_t size) noexcept {
     if (m_buffer.capacity() - m_buffer.size() < size) [[unlikely]] {
         size_t reserve_space = m_buffer_grow_size;
@@ -70,7 +69,6 @@ inline void Writer::ReserveBuffer(size_t size) noexcept {
     }
 }
 
-[[gnu::always_inline]]
 inline BufferOffset Writer::WriteData(const void* data, size_t size) noexcept {
     const uint8_t* byte_data = static_cast<const uint8_t*>(data);
     BufferOffset offset = m_buffer.size();
@@ -94,7 +92,7 @@ inline void Writer::WriteData(Type value) noexcept {
     }
 }
 
-inline void Writer::WriteFieldHeader(const DataTag& tag, DataType type) noexcept {
+void Writer::WriteFieldHeader(const DataTag& tag, DataType type) noexcept {
     // Write type
     WriteData<DataType>(type);
 
@@ -109,7 +107,6 @@ inline void Writer::WriteFieldHeader(const DataTag& tag, DataType type) noexcept
     }
 }
 
-[[gnu::always_inline]]
 inline BufferOffset Writer::ReserveDataSizeField() noexcept {
     BufferOffset offset = m_buffer.size();
     ReserveBuffer(sizeof(FieldSize));
@@ -117,7 +114,6 @@ inline BufferOffset Writer::ReserveDataSizeField() noexcept {
     return offset;
 }
 
-[[gnu::always_inline]]
 inline void Writer::WriteDataSizeField(BufferOffset offset) noexcept {
     FieldSize size = static_cast<FieldSize>(m_buffer.size() - offset - sizeof(FieldSize));
 
@@ -126,19 +122,16 @@ inline void Writer::WriteDataSizeField(BufferOffset offset) noexcept {
     std::memcpy(m_buffer.data() + offset, &size, sizeof(size));
 }
 
-[[gnu::always_inline]]
 inline void* Writer::GetBufferPointer(BufferOffset offset) noexcept {
     return m_buffer.data() + offset;
 }
 
-[[gnu::always_inline]]
 inline void Writer::WriteString(const std::string_view& str) noexcept {
     const uint16_t length = static_cast<uint16_t>(str.size());
     WriteData<uint16_t>(length);
     WriteData(str.data(), length);
 }
 
-[[gnu::always_inline]]
 inline void Writer::WriteBinary(const void* data, FieldSize size) noexcept {
     WriteData<FieldSize>(size);
     WriteData(data, size);
@@ -250,7 +243,6 @@ ObjectWriter ObjectWriter::FieldObject(const DataTag& tag) noexcept {
 // ---------------------------------
 
 template <typename Type>
-[[gnu::always_inline]]
 inline void ObjectWriter::FieldArray(const DataTag& tag, DataType array_type, const Type* data, uint32_t length) noexcept {
     m_writer.WriteFieldHeader(tag, array_type);
 

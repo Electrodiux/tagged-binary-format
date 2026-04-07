@@ -89,13 +89,11 @@ ObjectReader::~ObjectReader() noexcept {
 // Memory checking helpers
 // ---------------------------------
 
-[[gnu::always_inline]]
 static inline bool CanAccessBuffer(const void* beg, const void* end, size_t size) noexcept {
     return static_cast<size_t>(static_cast<const uint8_t*>(end) - static_cast<const uint8_t*>(beg)) >= size;
 }
 
 template <typename Type, bool swap_endianess = true>
-[[gnu::always_inline]]
 static inline bool ReadData(const uint8_t*& read_ptr, const uint8_t* end_ptr, Type& out_value) noexcept {
     if (CanAccessBuffer(read_ptr, end_ptr, sizeof(Type))) [[likely]] {
         std::memcpy(&out_value, read_ptr, sizeof(Type));
@@ -336,7 +334,6 @@ void ObjectReader::CreateCache(uint32_t initial_size) const noexcept {
     m_is_valid = !errors && read_ptr == buff_end;
 }
 
-[[gnu::always_inline]]
 inline bool ObjectReader::FindTag(const DataTag& tag, CacheEntry& out_entry) const noexcept {
     if (!IsValid()) [[unlikely]] {
         return false;
@@ -399,7 +396,6 @@ inline bool ObjectReader::ReadPrimitive(const DataTag& tag, Type& out_value) con
     return true;
 }
 
-[[gnu::always_inline]]
 inline const void* ObjectReader::ReadPointerData(const DataTag& tag, DataType expected_type, FieldSize& out_size) const noexcept {
     CacheEntry entry;
     if (!FindTag(tag, entry) || entry.type != expected_type) {
@@ -520,7 +516,6 @@ std::optional<ObjectReader> ObjectReader::ReadObjectInternal(const CacheEntry& e
 // ---------------------------------
 
 template <typename Type, DataType expected_type>
-[[gnu::always_inline]]
 inline const Type* ObjectReader::ReadArray(const DataTag& tag, uint32_t& out_length) const noexcept {
     FieldSize out_size;
     const void* value_ptr = ReadPointerData(tag, expected_type, out_size);
@@ -619,7 +614,6 @@ std::optional<ObjectArrayReader> ObjectReader::ReadObjectArray(const DataTag& ta
 // ---------------------------------
 
 template <typename Type, DataType expected_type>
-[[gnu::always_inline]]
 inline std::span<const Type> ObjectReader::ReadArray(const DataTag& tag) const noexcept {
     uint32_t length;
     const Type* data = ReadArray<Type, expected_type>(tag, length);
@@ -680,7 +674,6 @@ std::span<const double> ObjectReader::ReadFloat64Array(const DataTag& tag) const
 
 template <typename Type, uint32_t dim>
     requires std::is_arithmetic<Type>::value && (dim >= 2) && (dim <= 4)
-[[gnu::always_inline]]
 inline Type* ObjectReader::ReadVector(const DataTag& tag, DataType type) const noexcept {
     CacheEntry entry;
     if (!FindTag(tag, entry) || entry.type != type) {
@@ -949,10 +942,6 @@ void ArrayReader<ElementSizeType>::BaseIterator::Advance() noexcept {
     AdjustEndianess(element_size);
     m_current_ptr += sizeof(element_size) + element_size;
     m_index++;
-
-    if (m_current_ptr < m_end_ptr) {
-        __builtin_prefetch(m_current_ptr, 0, 3);
-    }
 }
 
 template <typename ElementSizeType>

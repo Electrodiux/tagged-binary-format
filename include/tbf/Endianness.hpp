@@ -34,7 +34,6 @@ namespace tbf {
 constexpr std::endian TBF_ENDIANESS = std::endian::little;
 
 template <typename Type>
-[[gnu::always_inline]]
 inline void AdjustEndianess(Type& value) {
     if constexpr (std::endian::native != TBF_ENDIANESS) {
         if constexpr (sizeof(Type) == 2) {
