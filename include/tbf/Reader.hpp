@@ -28,12 +28,15 @@
 #include "tbf/DataTag.hpp"
 #include "tbf/DataType.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <optional>
 #include <span>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 namespace tbf {
@@ -62,11 +65,6 @@ class ObjectReader {
         int32_t v_int32;
         int64_t v_int64;
 
-        uint8_t v_uint8;
-        uint16_t v_uint16;
-        uint32_t v_uint32;
-        uint64_t v_uint64;
-
         bool v_bool;
         uint16_t v_float16;
         float v_float32;
@@ -88,14 +86,12 @@ class ObjectReader {
     bool m_name_based;
 
     // Reader cache for quick tag lookup
+    using IdCache = std::unordered_map<DataTag::Id, CacheEntry>;
+    using NameCache = std::unordered_map<std::string_view, CacheEntry>;
+    mutable std::variant<IdCache, NameCache> m_cache;
 
     mutable bool m_cache_built = false;
     mutable bool m_is_valid = false;
-
-    union {
-        mutable std::unordered_map<DataTag::Id, CacheEntry> m_id_cache;
-        mutable std::unordered_map<std::string_view, CacheEntry> m_name_cache;
-    };
 
     // ---------------------------------
     // Constructors & Destructor
@@ -108,8 +104,10 @@ class ObjectReader {
    public:
     ObjectReader(const ObjectReader&) noexcept = delete;
     ObjectReader& operator=(const ObjectReader&) noexcept = delete;
+    ObjectReader(ObjectReader&&) noexcept = default;
+    ObjectReader& operator=(ObjectReader&&) noexcept = default;
 
-    ~ObjectReader() noexcept;
+    ~ObjectReader() noexcept = default;
 
     // ---------------------------------
     // Methods
@@ -154,256 +152,79 @@ class ObjectReader {
     bool FindTag(const DataTag& tag, CacheEntry& out_entry) const noexcept;
 
     void Invalidate() noexcept {
-        if (m_name_based) {
-            m_name_cache.clear();
-        } else {
-            m_id_cache.clear();
-        }
         m_cache_built = false;
         m_is_valid = false;
     }
 
     // ---------------------------------
-    // Read methods
+    // Read methods - Template-based
     // ---------------------------------
 
    private:
-    template <typename Type, DataType expected_type>
-    bool ReadPrimitive(const DataTag& tag, Type& out_value) const noexcept;
+    template <Primitive T>
+    bool ReadPrimitive(const DataTag& tag, T& out_value) const noexcept;
+
     const void* ReadPointerData(const DataTag& tag, DataType expected_type, FieldSize& out_size) const noexcept;
 
    public:
-    bool ReadInt8(const DataTag& tag, int8_t& out_value) const noexcept;
-    bool ReadInt16(const DataTag& tag, int16_t& out_value) const noexcept;
-    bool ReadInt32(const DataTag& tag, int32_t& out_value) const noexcept;
-    bool ReadInt64(const DataTag& tag, int64_t& out_value) const noexcept;
+    // Primitives - returns optional
+    template <Primitive T>
+    [[nodiscard]] std::optional<T> Read(const DataTag& tag) const noexcept;
 
-    bool ReadUInt8(const DataTag& tag, uint8_t& out_value) const noexcept;
-    bool ReadUInt16(const DataTag& tag, uint16_t& out_value) const noexcept;
-    bool ReadUInt32(const DataTag& tag, uint32_t& out_value) const noexcept;
-    bool ReadUInt64(const DataTag& tag, uint64_t& out_value) const noexcept;
+    // Primitives - out-param style
+    template <Primitive T>
+    bool Read(const DataTag& tag, T& out_value) const noexcept;
 
-    bool ReadBoolean(const DataTag& tag, bool& out_value) const noexcept;
-    bool ReadFloat16(const DataTag& tag, uint16_t& out_value) const noexcept;
-    bool ReadFloat32(const DataTag& tag, float& out_value) const noexcept;
-    bool ReadFloat64(const DataTag& tag, double& out_value) const noexcept;
+    // Enum
+    template <typename Enum>
+        requires std::is_enum_v<Enum>
+    [[nodiscard]] std::optional<Enum> ReadEnum(const DataTag& tag) const noexcept;
 
-    bool ReadString(const DataTag& tag, std::string_view& out_value) const noexcept;
+    // String
+    [[nodiscard]] std::optional<std::string_view> ReadString(const DataTag& tag) const noexcept;
 
+    // Binary
+    [[nodiscard]] std::span<const uint8_t> ReadBinary(const DataTag& tag) const noexcept;
+
+    // UUID
     [[nodiscard]] const void* ReadUUID(const DataTag& tag) const noexcept;
-    [[nodiscard]] const void* ReadBinary(const DataTag& tag, FieldSize& out_size) const noexcept;
+
+    // Object
     [[nodiscard]] std::optional<ObjectReader> ReadObject(const DataTag& tag) const noexcept;
 
-    template <typename Enum>
-        requires std::is_enum<Enum>::value
-    inline void FieldEnum(const DataTag& tag, Enum value) {
-        using UnderlyingType = typename std::underlying_type<Enum>::type;
-        return ReadPrimitive<UnderlyingType, IntegerType<UnderlyingType>()>(tag, reinterpret_cast<UnderlyingType&>(value));
-    }
-
     // ---------------------------------
-    // Helper read methods
+    // Read arrays - Template-based
     // ---------------------------------
 
-   public:
-    [[nodiscard]]
-    inline std::optional<int8_t> ReadInt8(const DataTag& tag) const noexcept {
-        int8_t value;
-        return ReadInt8(tag, value) ? std::optional<int8_t>(value) : std::nullopt;
-    }
+    // Fixed arrays - span return
+    template <ArrayElement T>
+    [[nodiscard]] std::span<const T> ReadArray(const DataTag& tag) const noexcept;
 
-    [[nodiscard]]
-    inline std::optional<int16_t> ReadInt16(const DataTag& tag) const noexcept {
-        int16_t value;
-        return ReadInt16(tag, value) ? std::optional<int16_t>(value) : std::nullopt;
-    }
+    // Fixed arrays - pointer + length return
+    template <ArrayElement T>
+    [[nodiscard]] const T* ReadArray(const DataTag& tag, uint32_t& out_length) const noexcept;
 
-    [[nodiscard]]
-    inline std::optional<int32_t> ReadInt32(const DataTag& tag) const noexcept {
-        int32_t value;
-        return ReadInt32(tag, value) ? std::optional<int32_t>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<int64_t> ReadInt64(const DataTag& tag) const noexcept {
-        int64_t value;
-        return ReadInt64(tag, value) ? std::optional<int64_t>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<uint8_t> ReadUInt8(const DataTag& tag) const noexcept {
-        uint8_t value;
-        return ReadUInt8(tag, value) ? std::optional<uint8_t>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<uint16_t> ReadUInt16(const DataTag& tag) const noexcept {
-        uint16_t value;
-        return ReadUInt16(tag, value) ? std::optional<uint16_t>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<uint32_t> ReadUInt32(const DataTag& tag) const noexcept {
-        uint32_t value;
-        return ReadUInt32(tag, value) ? std::optional<uint32_t>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<uint64_t> ReadUInt64(const DataTag& tag) const noexcept {
-        uint64_t value;
-        return ReadUInt64(tag, value) ? std::optional<uint64_t>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<bool> ReadBoolean(const DataTag& tag) const noexcept {
-        bool value;
-        return ReadBoolean(tag, value) ? std::optional<bool>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<uint16_t> ReadFloat16(const DataTag& tag) const noexcept {
-        uint16_t value;
-        return ReadFloat16(tag, value) ? std::optional<uint16_t>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<float> ReadFloat32(const DataTag& tag) const noexcept {
-        float value;
-        return ReadFloat32(tag, value) ? std::optional<float>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<double> ReadFloat64(const DataTag& tag) const noexcept {
-        double value;
-        return ReadFloat64(tag, value) ? std::optional<double>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::optional<std::string_view> ReadString(const DataTag& tag) const noexcept {
-        std::string_view value;
-        return ReadString(tag, value) ? std::optional<std::string_view>(value) : std::nullopt;
-    }
-
-    [[nodiscard]]
-    inline std::span<const uint8_t> ReadBinary(const DataTag& tag) const noexcept {
-        uint32_t size;
-        const void* data = ReadBinary(tag, size);
-        return data ? std::span<const uint8_t>(static_cast<const uint8_t*>(data), size) : std::span<const uint8_t>();
-    }
-
-    template <typename Enum>
-        requires std::is_enum<Enum>::value
-    [[nodiscard]]
-    inline std::optional<Enum> FieldEnum(const DataTag& tag) const noexcept {
-        using UnderlyingType = typename std::underlying_type<Enum>::type;
-        UnderlyingType value;
-        if (ReadPrimitive<UnderlyingType, IntegerType<UnderlyingType>()>(tag, value)) {
-            return std::optional<Enum>(static_cast<Enum>(value));
-        }
-        return std::nullopt;
-    }
-
-    // ---------------------------------
-    // Read arrays
-    // ---------------------------------
-
-   private:
-    template <typename Type, DataType expected_type>
-    const Type* ReadArray(const DataTag& tag, uint32_t& out_length) const noexcept;
-
-   public:
-    [[nodiscard]] const int8_t* ReadInt8Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const int16_t* ReadInt16Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const int32_t* ReadInt32Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const int64_t* ReadInt64Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-
-    [[nodiscard]] const uint8_t* ReadUInt8Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const uint16_t* ReadUInt16Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const uint32_t* ReadUInt32Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const uint64_t* ReadUInt64Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-
-    [[nodiscard]] const bool* ReadBooleanArray(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const uint16_t* ReadFloat16Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const float* ReadFloat32Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-    [[nodiscard]] const double* ReadFloat64Array(const DataTag& tag, uint32_t& out_length) const noexcept;
-
+    // Variable arrays
     [[nodiscard]] std::optional<StringArrayReader> ReadStringArray(const DataTag& tag) const noexcept;
     [[nodiscard]] std::optional<BinaryArrayReader> ReadBinaryArray(const DataTag& tag) const noexcept;
     [[nodiscard]] std::optional<ObjectArrayReader> ReadObjectArray(const DataTag& tag) const noexcept;
 
     // ---------------------------------
-    // Read array as std::span methods
+    // Read vectors - Template-based
     // ---------------------------------
 
-   private:
-    template <typename Type, DataType expected_type>
-    std::span<const Type> ReadArray(const DataTag& tag) const noexcept;
-
-   public:
-    [[nodiscard]] std::span<const int8_t> ReadInt8Array(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const int16_t> ReadInt16Array(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const int32_t> ReadInt32Array(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const int64_t> ReadInt64Array(const DataTag& tag) const noexcept;
-
-    [[nodiscard]] std::span<const uint8_t> ReadUInt8Array(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const uint16_t> ReadUInt16Array(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const uint32_t> ReadUInt32Array(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const uint64_t> ReadUInt64Array(const DataTag& tag) const noexcept;
-
-    [[nodiscard]] std::span<const bool> ReadBooleanArray(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const uint16_t> ReadFloat16Array(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const float> ReadFloat32Array(const DataTag& tag) const noexcept;
-    [[nodiscard]] std::span<const double> ReadFloat64Array(const DataTag& tag) const noexcept;
+    template <Primitive T, uint32_t size>
+        requires(size >= 2) && (size <= 4)
+    [[nodiscard]] std::optional<std::array<T, size>> ReadVector(const DataTag& tag) const noexcept;
 
    private:
     bool ReadStringInternal(const CacheEntry& entry, std::string_view& out_value) const noexcept;
+
     [[nodiscard]] std::optional<ObjectReader> ReadObjectInternal(const CacheEntry& entry) const noexcept;
 
-    // ---------------------------------
-    // Read vectors
-    // ---------------------------------
-
-   private:
-    template <typename Type, uint32_t dim>
-        requires std::is_arithmetic<Type>::value && (dim >= 2) && (dim <= 4)
-    Type* ReadVector(const DataTag& tag, DataType type) const noexcept;
-
-   public:
-    // Vector 2
-
-    int8_t* ReadVector2i8(const DataTag& tag) const noexcept;
-    int16_t* ReadVector2i16(const DataTag& tag) const noexcept;
-    int32_t* ReadVector2i32(const DataTag& tag) const noexcept;
-    int64_t* ReadVector2i64(const DataTag& tag) const noexcept;
-
-    bool* ReadVector2b(const DataTag& tag) const noexcept;
-    uint16_t* ReadVector2f16(const DataTag& tag) const noexcept;
-    float* ReadVector2f32(const DataTag& tag) const noexcept;
-    double* ReadVector2f64(const DataTag& tag) const noexcept;
-
-    // Vector 3
-
-    int8_t* ReadVector3i8(const DataTag& tag) const noexcept;
-    int16_t* ReadVector3i16(const DataTag& tag) const noexcept;
-    int32_t* ReadVector3i32(const DataTag& tag) const noexcept;
-    int64_t* ReadVector3i64(const DataTag& tag) const noexcept;
-
-    bool* ReadVector3b(const DataTag& tag) const noexcept;
-    uint16_t* ReadVector3f16(const DataTag& tag) const noexcept;
-    float* ReadVector3f32(const DataTag& tag) const noexcept;
-    double* ReadVector3f64(const DataTag& tag) const noexcept;
-
-    // Vector 4
-
-    int8_t* ReadVector4i8(const DataTag& tag) const noexcept;
-    int16_t* ReadVector4i16(const DataTag& tag) const noexcept;
-    int32_t* ReadVector4i32(const DataTag& tag) const noexcept;
-    int64_t* ReadVector4i64(const DataTag& tag) const noexcept;
-
-    bool* ReadVector4b(const DataTag& tag) const noexcept;
-    uint16_t* ReadVector4f16(const DataTag& tag) const noexcept;
-    float* ReadVector4f32(const DataTag& tag) const noexcept;
-    double* ReadVector4f64(const DataTag& tag) const noexcept;
+    template <Primitive T, uint32_t size>
+        requires(size >= 2) && (size <= 4)
+    [[nodiscard]] std::optional<std::array<T, size>> ReadVectorInternal(const CacheEntry& entry) const noexcept;
 };
 
 template <typename ElementSizeType>
@@ -647,5 +468,108 @@ class Reader {
     inline const ObjectReader& RootObject() const noexcept { return m_root_object; }
     inline bool IsValid() const noexcept { return m_root_object.IsValid(); }
 };
+
+// ==============================================================================
+// Template implementations
+// ==============================================================================
+
+template <Primitive T>
+bool ObjectReader::ReadPrimitive(const DataTag& tag, T& out_value) const noexcept {
+    CacheEntry entry;
+    if (!FindTag(tag, entry) || entry.type != Type<T>::type) {
+        return false;
+    }
+    std::memcpy(&out_value, &entry.value, sizeof(T));
+    return true;
+}
+
+template <Primitive T>
+std::optional<T> ObjectReader::Read(const DataTag& tag) const noexcept {
+    T value;
+    return ReadPrimitive<T>(tag, value) ? std::optional<T>(value) : std::nullopt;
+}
+
+template <Primitive T>
+bool ObjectReader::Read(const DataTag& tag, T& out_value) const noexcept {
+    return ReadPrimitive<T>(tag, out_value);
+}
+
+template <typename Enum>
+    requires std::is_enum_v<Enum>
+std::optional<Enum> ObjectReader::ReadEnum(const DataTag& tag) const noexcept {
+    using UnderlyingType = std::underlying_type_t<Enum>;
+    UnderlyingType value;
+    if (ReadPrimitive<UnderlyingType>(tag, value)) {
+        return std::optional<Enum>(static_cast<Enum>(value));
+    }
+    return std::nullopt;
+}
+
+template <ArrayElement T>
+std::span<const T> ObjectReader::ReadArray(const DataTag& tag) const noexcept {
+    FieldSize out_size;
+    const void* value_ptr = ReadPointerData(tag, Type<T>::array_type, out_size);
+
+    if (value_ptr != nullptr) {
+        constexpr uint32_t element_size = sizeof(T);
+        uint32_t array_length = out_size / element_size;
+
+        if (array_length * element_size != out_size) [[unlikely]] {
+            return std::span<const T>();
+        }
+
+        return std::span<const T>(static_cast<const T*>(value_ptr), array_length);
+    }
+
+    return std::span<const T>();
+}
+
+template <ArrayElement T>
+const T* ObjectReader::ReadArray(const DataTag& tag, uint32_t& out_length) const noexcept {
+    FieldSize out_size;
+    const void* value_ptr = ReadPointerData(tag, Type<T>::array_type, out_size);
+
+    if (value_ptr != nullptr) {
+        constexpr uint32_t element_size = sizeof(T);
+        uint32_t array_length = out_size / element_size;
+
+        if (array_length * element_size != out_size) [[unlikely]] {
+            out_length = 0;
+            return nullptr;
+        }
+
+        out_length = array_length;
+        return static_cast<const T*>(value_ptr);
+    }
+
+    out_length = 0;
+    return nullptr;
+}
+
+template <Primitive T, uint32_t size>
+    requires(size >= 2) && (size <= 4)
+std::optional<std::array<T, size>> ObjectReader::ReadVector(const DataTag& tag) const noexcept {
+    CacheEntry entry;
+    if (!FindTag(tag, entry)) {
+        return std::nullopt;
+    }
+    return ReadVectorInternal<T, size>(entry);
+}
+
+template <Primitive T, uint32_t size>
+    requires(size >= 2) && (size <= 4)
+std::optional<std::array<T, size>> ObjectReader::ReadVectorInternal(const CacheEntry& entry) const noexcept {
+    DataType expected_type = VectorType<size, T>();
+    if (entry.type != expected_type) {
+        return std::nullopt;
+    }
+
+    std::array<T, size> result;
+    const T* src = static_cast<const T*>(entry.value.ptr);
+    for (uint32_t i = 0; i < size; ++i) {
+        result[i] = src[i];
+    }
+    return std::optional<std::array<T, size>>(result);
+}
 
 }  // namespace tbf

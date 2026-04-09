@@ -27,7 +27,9 @@
 
 #include "tbf/DataTag.hpp"
 #include "tbf/DataType.hpp"
+#include "tbf/Endianness.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -65,220 +67,91 @@ class ObjectWriter {
     ObjectWriter(const ObjectWriter&) = delete;
     ObjectWriter& operator=(const ObjectWriter&) = delete;
 
+    // RAII: move semantics for ownership transfer
+    ObjectWriter(ObjectWriter&& other) noexcept;
+    ObjectWriter& operator=(ObjectWriter&& other) noexcept;
+
+    // RAII: auto-finish on destruction
+    ~ObjectWriter() noexcept { Finish(); }
+
    public:
     void Finish() noexcept;
-    inline bool IsFinished() const noexcept { return m_is_finished; }
+    bool IsFinished() const noexcept { return m_is_finished; }
 
-    inline Writer& GetWriter() noexcept { return m_writer; }
-    inline const Writer& GetWriter() const noexcept { return m_writer; }
+    Writer& GetWriter() noexcept { return m_writer; }
+    const Writer& GetWriter() const noexcept { return m_writer; }
 
     // ---------------------------------
-    // Field methods
+    // Field methods - Template-based
     // ---------------------------------
 
    public:
-    void FieldInt8(const DataTag& tag, int8_t value) noexcept;
-    void FieldInt16(const DataTag& tag, int16_t value) noexcept;
-    void FieldInt32(const DataTag& tag, int32_t value) noexcept;
-    void FieldInt64(const DataTag& tag, int64_t value) noexcept;
+    // Primitives (int8..int64, bool, float, double)
+    template <Primitive T>
+    void Field(const DataTag& tag, T value) noexcept;
 
-    void FieldUInt8(const DataTag& tag, uint8_t value) noexcept;
-    void FieldUInt16(const DataTag& tag, uint16_t value) noexcept;
-    void FieldUInt32(const DataTag& tag, uint32_t value) noexcept;
-    void FieldUInt64(const DataTag& tag, uint64_t value) noexcept;
+    // Enum
+    template <typename Enum>
+        requires std::is_enum_v<Enum>
+    void Field(const DataTag& tag, Enum value) noexcept;
 
-    void FieldBoolean(const DataTag& tag, bool value) noexcept;
-    void FieldFloat16(const DataTag& tag, uint16_t value) noexcept;
-    void FieldFloat32(const DataTag& tag, float value) noexcept;
-    void FieldFloat64(const DataTag& tag, double value) noexcept;
+    // String
+    void Field(const DataTag& tag, std::string_view value) noexcept;
 
+    // Binary
+    void Field(const DataTag& tag, std::span<const uint8_t> data) noexcept;
+    void Field(const DataTag& tag, const void* data, size_t size) noexcept;
+
+    // UUID (16-byte pointer)
     void FieldUUID(const DataTag& tag, const void* uuid) noexcept;
-    void FieldString(const DataTag& tag, std::string_view value) noexcept;
-    void FieldBinary(const DataTag& tag, const void* data, size_t size) noexcept;
+
+    // Object (returns sub-writer)
     [[nodiscard]] ObjectWriter FieldObject(const DataTag& tag) noexcept;
 
-    template <typename Enum>
-        requires std::is_enum<Enum>::value
-    inline void FieldEnum(const DataTag& tag, Enum value);
-
     // ---------------------------------
-    // Array field methods
+    // Fixed-size arrays
     // ---------------------------------
 
-   private:
-    template <typename Type>
-    void FieldArray(const DataTag& tag, DataType array_type, const Type* data, uint32_t length) noexcept;
+    template <ArrayElement T>
+    void FieldArray(const DataTag& tag, std::span<const T> data) noexcept;
 
-   public:
-    void FieldArrayInt8(const DataTag& tag, const int8_t* data, uint32_t length) noexcept;
-    void FieldArrayInt16(const DataTag& tag, const int16_t* data, uint32_t length) noexcept;
-    void FieldArrayInt32(const DataTag& tag, const int32_t* data, uint32_t length) noexcept;
-    void FieldArrayInt64(const DataTag& tag, const int64_t* data, uint32_t length) noexcept;
+    template <ArrayElement T>
+    void FieldArray(const DataTag& tag, const T* data, uint32_t length) noexcept;
 
-    void FieldArrayUInt8(const DataTag& tag, const uint8_t* data, uint32_t length) noexcept;
-    void FieldArrayUInt16(const DataTag& tag, const uint16_t* data, uint32_t length) noexcept;
-    void FieldArrayUInt32(const DataTag& tag, const uint32_t* data, uint32_t length) noexcept;
-    void FieldArrayUInt64(const DataTag& tag, const uint64_t* data, uint32_t length) noexcept;
-
-    void FieldArrayBoolean(const DataTag& tag, const bool* data, uint32_t length) noexcept;
-    void FieldArrayFloat16(const DataTag& tag, const uint16_t* data, uint32_t length) noexcept;
-    void FieldArrayFloat32(const DataTag& tag, const float* data, uint32_t length) noexcept;
-    void FieldArrayFloat64(const DataTag& tag, const double* data, uint32_t length) noexcept;
+    // ---------------------------------
+    // Variable arrays - builder pattern
+    // ---------------------------------
 
     [[nodiscard]] StringArrayWriter FieldStringArray(const DataTag& tag) noexcept;
-    void FieldStringArray(const DataTag& tag, const std::string_view* data, uint32_t length) noexcept;
+    void FieldStringArray(const DataTag& tag, std::span<const std::string_view> data) noexcept;
 
     [[nodiscard]] BinaryArrayWriter FieldBinaryArray(const DataTag& tag) noexcept;
-    void FieldBinaryArray(const DataTag& tag, const void* const* data, const uint32_t* sizes, uint32_t length) noexcept;
 
     [[nodiscard]] ObjectArrayWriter FieldObjectArray(const DataTag& tag) noexcept;
 
     // ---------------------------------
-    // Array field with std::span
+    // Vectors (std::array version)
     // ---------------------------------
 
-   public:
-    inline void FieldArrayInt8(const DataTag& tag, std::span<const int8_t> data) noexcept {
-        FieldArrayInt8(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
+    template <Primitive T, uint32_t size>
+        requires VectorSize<size>
+    void FieldVector(const DataTag& tag, const std::array<T, size>& data) noexcept;
 
-    inline void FieldArrayInt16(const DataTag& tag, std::span<const int16_t> data) noexcept {
-        FieldArrayInt16(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayInt32(const DataTag& tag, std::span<const int32_t> data) noexcept {
-        FieldArrayInt32(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayInt64(const DataTag& tag, std::span<const int64_t> data) noexcept {
-        FieldArrayInt64(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayUInt8(const DataTag& tag, std::span<const uint8_t> data) noexcept {
-        FieldArrayUInt8(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayUInt16(const DataTag& tag, std::span<const uint16_t> data) noexcept {
-        FieldArrayUInt16(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayUInt32(const DataTag& tag, std::span<const uint32_t> data) noexcept {
-        FieldArrayUInt32(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayUInt64(const DataTag& tag, std::span<const uint64_t> data) noexcept {
-        FieldArrayUInt64(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayBoolean(const DataTag& tag, std::span<const bool> data) noexcept {
-        FieldArrayBoolean(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayFloat16(const DataTag& tag, std::span<const uint16_t> data) noexcept {
-        FieldArrayFloat16(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayFloat32(const DataTag& tag, std::span<const float> data) noexcept {
-        FieldArrayFloat32(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    inline void FieldArrayFloat64(const DataTag& tag, std::span<const double> data) noexcept {
-        FieldArrayFloat64(tag, data.data(), static_cast<uint32_t>(data.size()));
-    }
-
-    // ---------------------------------
-    // Field vectors
-    // ---------------------------------
+    // Vectors (pointer version)
+    template <Primitive T, uint32_t size>
+        requires VectorSize<size>
+    void FieldVector(const DataTag& tag, const T* data) noexcept;
 
    private:
-    template <typename Type, uint32_t dim>
-        requires std::is_arithmetic<Type>::value && (dim >= 2) && (dim <= 4)
-    void FieldVector(const DataTag& tag, DataType vector_type, const Type* data) noexcept;
+    template <Primitive T>
+    void WritePrimitiveField(const DataTag& tag, DataType type, T value) noexcept;
 
-   public:
-    // Vector 2
+    template <ArrayElement T>
+    void WriteArrayField(const DataTag& tag, const T* data, uint32_t length) noexcept;
 
-    void FieldVector2i8(const DataTag& tag, const int8_t* data) noexcept;
-    void FieldVector2i16(const DataTag& tag, const int16_t* data) noexcept;
-    void FieldVector2i32(const DataTag& tag, const int32_t* data) noexcept;
-    void FieldVector2i64(const DataTag& tag, const int64_t* data) noexcept;
-
-    inline void FieldVector2i8(const DataTag& tag, const uint8_t* data) noexcept {
-        FieldVector2i8(tag, reinterpret_cast<const int8_t*>(data));
-    }
-
-    inline void FieldVector2i16(const DataTag& tag, const uint16_t* data) noexcept {
-        FieldVector2i16(tag, reinterpret_cast<const int16_t*>(data));
-    }
-
-    inline void FieldVector2i32(const DataTag& tag, const uint32_t* data) noexcept {
-        FieldVector2i32(tag, reinterpret_cast<const int32_t*>(data));
-    }
-
-    inline void FieldVector2i64(const DataTag& tag, const uint64_t* data) noexcept {
-        FieldVector2i64(tag, reinterpret_cast<const int64_t*>(data));
-    }
-
-    void FieldVector2b(const DataTag& tag, const bool* data) noexcept;
-    void FieldVector2f16(const DataTag& tag, const uint16_t* data) noexcept;
-    void FieldVector2f32(const DataTag& tag, const float* data) noexcept;
-    void FieldVector2f64(const DataTag& tag, const double* data) noexcept;
-
-    // Vector 3
-
-    void FieldVector3i8(const DataTag& tag, const int8_t* data) noexcept;
-    void FieldVector3i16(const DataTag& tag, const int16_t* data) noexcept;
-    void FieldVector3i32(const DataTag& tag, const int32_t* data) noexcept;
-    void FieldVector3i64(const DataTag& tag, const int64_t* data) noexcept;
-
-    inline void FieldVector3i8(const DataTag& tag, const uint8_t* data) noexcept {
-        FieldVector3i8(tag, reinterpret_cast<const int8_t*>(data));
-    }
-
-    inline void FieldVector3i16(const DataTag& tag, const uint16_t* data) noexcept {
-        FieldVector3i16(tag, reinterpret_cast<const int16_t*>(data));
-    }
-
-    inline void FieldVector3i32(const DataTag& tag, const uint32_t* data) noexcept {
-        FieldVector3i32(tag, reinterpret_cast<const int32_t*>(data));
-    }
-
-    inline void FieldVector3i64(const DataTag& tag, const uint64_t* data) noexcept {
-        FieldVector3i64(tag, reinterpret_cast<const int64_t*>(data));
-    }
-
-    void FieldVector3b(const DataTag& tag, const bool* data) noexcept;
-    void FieldVector3f16(const DataTag& tag, const uint16_t* data) noexcept;
-    void FieldVector3f32(const DataTag& tag, const float* data) noexcept;
-    void FieldVector3f64(const DataTag& tag, const double* data) noexcept;
-
-    // Vector 4
-
-    void FieldVector4i8(const DataTag& tag, const int8_t* data) noexcept;
-    void FieldVector4i16(const DataTag& tag, const int16_t* data) noexcept;
-    void FieldVector4i32(const DataTag& tag, const int32_t* data) noexcept;
-    void FieldVector4i64(const DataTag& tag, const int64_t* data) noexcept;
-
-    inline void FieldVector4i8(const DataTag& tag, const uint8_t* data) noexcept {
-        FieldVector4i8(tag, reinterpret_cast<const int8_t*>(data));
-    }
-
-    inline void FieldVector4i16(const DataTag& tag, const uint16_t* data) noexcept {
-        FieldVector4i16(tag, reinterpret_cast<const int16_t*>(data));
-    }
-
-    inline void FieldVector4i32(const DataTag& tag, const uint32_t* data) noexcept {
-        FieldVector4i32(tag, reinterpret_cast<const int32_t*>(data));
-    }
-
-    inline void FieldVector4i64(const DataTag& tag, const uint64_t* data) noexcept {
-        FieldVector4i64(tag, reinterpret_cast<const int64_t*>(data));
-    }
-
-    void FieldVector4b(const DataTag& tag, const bool* data) noexcept;
-    void FieldVector4f16(const DataTag& tag, const uint16_t* data) noexcept;
-    void FieldVector4f32(const DataTag& tag, const float* data) noexcept;
-    void FieldVector4f64(const DataTag& tag, const double* data) noexcept;
+    template <Primitive T, uint32_t size>
+        requires VectorSize<size>
+    void WriteVectorField(const DataTag& tag, const T* data) noexcept;
 };
 
 class ArrayWriter {
@@ -300,10 +173,15 @@ class ArrayWriter {
     ArrayWriter(const ArrayWriter&) = delete;
     ArrayWriter& operator=(const ArrayWriter&) = delete;
 
+    // RAII: move semantics
+    ArrayWriter(ArrayWriter&& other) noexcept;
+    ArrayWriter& operator=(ArrayWriter&& other) noexcept;
+
+    // RAII: auto-finish on destruction
     virtual ~ArrayWriter() { Finish(); }
 
     void Finish() noexcept;
-    inline bool IsFinished() const noexcept { return m_is_finished; }
+    bool IsFinished() const noexcept { return m_is_finished; }
 };
 
 class StringArrayWriter : public ArrayWriter {
@@ -325,7 +203,8 @@ class BinaryArrayWriter : public ArrayWriter {
     BinaryArrayWriter(ObjectWriter& obj) noexcept : ArrayWriter(obj) {}
 
    public:
-    void AddElement(const void* element, FieldSize size) noexcept;
+    void AddElement(std::span<const uint8_t> data) noexcept;
+    void AddElement(const void* data, FieldSize size) noexcept;
 };
 
 class ObjectArrayWriter : public ArrayWriter {
@@ -371,11 +250,11 @@ class Writer {
     // Methods
     // ---------------------------------
 
-    inline const void* Data() const noexcept { return m_buffer.data(); }
-    inline size_t Size() const noexcept { return m_buffer.size(); }
+    const void* Data() const noexcept { return m_buffer.data(); }
+    size_t Size() const noexcept { return m_buffer.size(); }
 
-    inline ObjectWriter& RootObject() noexcept { return m_root_object; }
-    inline void Finish() noexcept { m_root_object.Finish(); }
+    ObjectWriter& RootObject() noexcept { return m_root_object; }
+    void Finish() noexcept { m_root_object.Finish(); }
 
     void SetBufferGrowSize(uint32_t grow_size) noexcept;
 
@@ -398,16 +277,112 @@ class Writer {
 
     void* GetBufferPointer(BufferOffset offset) noexcept;
 
-    void WriteString(const std::string_view& str) noexcept;
-    void WriteBinary(const void* data, FieldSize size) noexcept;
+    void WriteString(std::string_view str) noexcept;
+    void WriteBinary(std::span<const uint8_t> data) noexcept;
 };
 
+// ==============================================================================
+// Template implementations
+// ==============================================================================
+
+template <Primitive T>
+void ObjectWriter::Field(const DataTag& tag, T value) noexcept {
+    WritePrimitiveField(tag, Type<T>::type, value);
+}
+
 template <typename Enum>
-    requires std::is_enum<Enum>::value
-void ObjectWriter::FieldEnum(const DataTag& tag, Enum value) {
-    using UnderlyingType = typename std::underlying_type<Enum>::type;
-    m_writer.WriteFieldHeader(tag, IntegerType<UnderlyingType>());
-    m_writer.WriteData<UnderlyingType, true>(static_cast<UnderlyingType>(value));
+    requires std::is_enum_v<Enum>
+void ObjectWriter::Field(const DataTag& tag, Enum value) noexcept {
+    using UnderlyingType = std::underlying_type_t<Enum>;
+    WritePrimitiveField(tag, Type<UnderlyingType>::type, static_cast<UnderlyingType>(value));
+}
+
+template <ArrayElement T>
+void ObjectWriter::FieldArray(const DataTag& tag, std::span<const T> data) noexcept {
+    WriteArrayField(tag, data.data(), static_cast<uint32_t>(data.size()));
+}
+
+template <ArrayElement T>
+void ObjectWriter::FieldArray(const DataTag& tag, const T* data, uint32_t length) noexcept {
+    WriteArrayField(tag, data, length);
+}
+
+template <Primitive T, uint32_t size>
+    requires VectorSize<size>
+void ObjectWriter::FieldVector(const DataTag& tag, const std::array<T, size>& data) noexcept {
+    WriteVectorField<T, size>(tag, data.data());
+}
+
+template <Primitive T, uint32_t size>
+    requires VectorSize<size>
+void ObjectWriter::FieldVector(const DataTag& tag, const T* data) noexcept {
+    WriteVectorField<T, size>(tag, data);
+}
+
+template <ArrayElement T>
+void ObjectWriter::WriteArrayField(const DataTag& tag, const T* data, uint32_t length) noexcept {
+    m_writer.WriteFieldHeader(tag, Type<T>::array_type);
+
+    // Write array length and array data
+    FieldSize size = length * sizeof(T);
+    m_writer.WriteData<FieldSize>(size);
+    BufferOffset offset = m_writer.WriteData(data, size);
+
+    AdjustArrayEndianess<sizeof(T)>(m_writer.GetBufferPointer(offset), length);
+}
+
+template <Primitive T>
+void ObjectWriter::WritePrimitiveField(const DataTag& tag, DataType type, T value) noexcept {
+    m_writer.WriteFieldHeader(tag, type);
+    if constexpr (std::is_same_v<T, float>) {
+        m_writer.WriteData<uint32_t>(std::bit_cast<uint32_t>(value));
+    } else if constexpr (std::is_same_v<T, double>) {
+        m_writer.WriteData<uint64_t>(std::bit_cast<uint64_t>(value));
+    } else {
+        m_writer.WriteData<T>(value);
+    }
+}
+
+template <typename Type, bool swap_endianess>
+void Writer::WriteData(Type value) noexcept {
+    if constexpr (sizeof(Type) > 1) {
+        if constexpr (swap_endianess) {
+            AdjustEndianess(value);
+        }
+        const uint8_t* byte_data = reinterpret_cast<const uint8_t*>(&value);
+        ReserveBuffer(sizeof(Type));
+        m_buffer.insert(m_buffer.end(), byte_data, byte_data + sizeof(Type));
+    } else {
+        ReserveBuffer(1);
+        m_buffer.push_back(static_cast<uint8_t>(value));
+    }
+}
+
+template <Primitive T, uint32_t size>
+    requires VectorSize<size>
+void ObjectWriter::WriteVectorField(const DataTag& tag, const T* data) noexcept {
+    DataType vector_type = VectorType<size, T>();
+    m_writer.WriteFieldHeader(tag, vector_type);
+
+    // For floats, we need to bit-cast to integer types for proper endian handling
+    if constexpr (std::is_same_v<T, float>) {
+        uint32_t temp[size];
+        for (uint32_t i = 0; i < size; ++i) {
+            temp[i] = std::bit_cast<uint32_t>(data[i]);
+        }
+        BufferOffset offset = m_writer.WriteData(temp, sizeof(temp));
+        AdjustArrayEndianess<sizeof(float)>(m_writer.GetBufferPointer(offset), size);
+    } else if constexpr (std::is_same_v<T, double>) {
+        uint64_t temp[size];
+        for (uint32_t i = 0; i < size; ++i) {
+            temp[i] = std::bit_cast<uint64_t>(data[i]);
+        }
+        BufferOffset offset = m_writer.WriteData(temp, sizeof(temp));
+        AdjustArrayEndianess<sizeof(double)>(m_writer.GetBufferPointer(offset), size);
+    } else {
+        BufferOffset offset = m_writer.WriteData(data, sizeof(T) * size);
+        AdjustArrayEndianess<sizeof(T)>(m_writer.GetBufferPointer(offset), size);
+    }
 }
 
 }  // namespace tbf

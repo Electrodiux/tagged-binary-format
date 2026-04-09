@@ -57,7 +57,7 @@ void Writer::SetBufferGrowSize(uint32_t grow_size) noexcept {
 // Writing methods
 // ---------------------------------
 
-inline void Writer::ReserveBuffer(size_t size) noexcept {
+void Writer::ReserveBuffer(size_t size) noexcept {
     if (m_buffer.capacity() - m_buffer.size() < size) [[unlikely]] {
         size_t reserve_space = m_buffer_grow_size;
 
@@ -69,27 +69,12 @@ inline void Writer::ReserveBuffer(size_t size) noexcept {
     }
 }
 
-inline BufferOffset Writer::WriteData(const void* data, size_t size) noexcept {
+BufferOffset Writer::WriteData(const void* data, size_t size) noexcept {
     const uint8_t* byte_data = static_cast<const uint8_t*>(data);
     BufferOffset offset = m_buffer.size();
     ReserveBuffer(size);
     m_buffer.insert(m_buffer.end(), byte_data, byte_data + size);
     return offset;
-}
-
-template <typename Type, bool swap_endianess>
-inline void Writer::WriteData(Type value) noexcept {
-    if constexpr (sizeof(Type) > 1) {
-        if constexpr (swap_endianess) {
-            AdjustEndianess(value);
-        }
-        const uint8_t* byte_data = reinterpret_cast<const uint8_t*>(&value);
-        ReserveBuffer(sizeof(Type));
-        m_buffer.insert(m_buffer.end(), byte_data, byte_data + sizeof(Type));
-    } else {
-        ReserveBuffer(1);
-        m_buffer.push_back(static_cast<uint8_t>(value));
-    }
 }
 
 void Writer::WriteFieldHeader(const DataTag& tag, DataType type) noexcept {
@@ -107,14 +92,14 @@ void Writer::WriteFieldHeader(const DataTag& tag, DataType type) noexcept {
     }
 }
 
-inline BufferOffset Writer::ReserveDataSizeField() noexcept {
+BufferOffset Writer::ReserveDataSizeField() noexcept {
     BufferOffset offset = m_buffer.size();
     ReserveBuffer(sizeof(FieldSize));
     m_buffer.insert(m_buffer.end(), sizeof(FieldSize), 0);
     return offset;
 }
 
-inline void Writer::WriteDataSizeField(BufferOffset offset) noexcept {
+void Writer::WriteDataSizeField(BufferOffset offset) noexcept {
     FieldSize size = static_cast<FieldSize>(m_buffer.size() - offset - sizeof(FieldSize));
 
     AdjustEndianess(size);
@@ -122,19 +107,19 @@ inline void Writer::WriteDataSizeField(BufferOffset offset) noexcept {
     std::memcpy(m_buffer.data() + offset, &size, sizeof(size));
 }
 
-inline void* Writer::GetBufferPointer(BufferOffset offset) noexcept {
+void* Writer::GetBufferPointer(BufferOffset offset) noexcept {
     return m_buffer.data() + offset;
 }
 
-inline void Writer::WriteString(const std::string_view& str) noexcept {
+void Writer::WriteString(std::string_view str) noexcept {
     const uint16_t length = static_cast<uint16_t>(str.size());
     WriteData<uint16_t>(length);
     WriteData(str.data(), length);
 }
 
-inline void Writer::WriteBinary(const void* data, FieldSize size) noexcept {
-    WriteData<FieldSize>(size);
-    WriteData(data, size);
+void Writer::WriteBinary(std::span<const uint8_t> data) noexcept {
+    WriteData<FieldSize>(static_cast<FieldSize>(data.size()));
+    WriteData(data.data(), data.size());
 }
 
 // ---------------------------------
@@ -145,6 +130,31 @@ ObjectWriter::ObjectWriter(Writer& writer) noexcept
     : m_writer(writer),
       m_is_finished(false) {
     m_obj_size_pos = writer.ReserveDataSizeField();
+}
+
+// RAII: move constructor
+ObjectWriter::ObjectWriter(ObjectWriter&& other) noexcept
+    : m_writer(other.m_writer),
+      m_obj_size_pos(other.m_obj_size_pos),
+      m_is_finished(other.m_is_finished) {
+    // Mark the source as finished so it doesn't write the size again
+    other.m_is_finished = true;
+}
+
+// RAII: move assignment
+ObjectWriter& ObjectWriter::operator=(ObjectWriter&& other) noexcept {
+    if (this != &other) {
+        // Finish our current object first if needed
+        if (!m_is_finished) {
+            Finish();
+        }
+        // This shouldn't normally happen as we can't reassign references
+        // But we handle the move semantics properly
+        m_obj_size_pos = other.m_obj_size_pos;
+        m_is_finished = other.m_is_finished;
+        other.m_is_finished = true;
+    }
+    return *this;
 }
 
 void ObjectWriter::Finish() noexcept {
@@ -158,79 +168,24 @@ void ObjectWriter::Finish() noexcept {
 // Field methods
 // ---------------------------------
 
-void ObjectWriter::FieldInt8(const DataTag& tag, int8_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Int8);
-    m_writer.WriteData<int8_t>(value);
+void ObjectWriter::Field(const DataTag& tag, std::string_view value) noexcept {
+    m_writer.WriteFieldHeader(tag, DataType::String);
+    m_writer.WriteString(value);
 }
 
-void ObjectWriter::FieldInt16(const DataTag& tag, int16_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Int16);
-    m_writer.WriteData<int16_t>(value);
+void ObjectWriter::Field(const DataTag& tag, std::span<const uint8_t> data) noexcept {
+    m_writer.WriteFieldHeader(tag, DataType::Binary);
+    m_writer.WriteBinary(data);
 }
 
-void ObjectWriter::FieldInt32(const DataTag& tag, int32_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Int32);
-    m_writer.WriteData<int32_t>(value);
-}
-
-void ObjectWriter::FieldInt64(const DataTag& tag, int64_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Int64);
-    m_writer.WriteData<int64_t>(value);
-}
-
-void ObjectWriter::FieldUInt8(const DataTag& tag, uint8_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::UInt8);
-    m_writer.WriteData<uint8_t>(value);
-}
-
-void ObjectWriter::FieldUInt16(const DataTag& tag, uint16_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::UInt16);
-    m_writer.WriteData<uint16_t>(value);
-}
-
-void ObjectWriter::FieldUInt32(const DataTag& tag, uint32_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::UInt32);
-    m_writer.WriteData<uint32_t>(value);
-}
-
-void ObjectWriter::FieldUInt64(const DataTag& tag, uint64_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::UInt64);
-    m_writer.WriteData<uint64_t>(value);
-}
-
-void ObjectWriter::FieldBoolean(const DataTag& tag, bool value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Boolean);
-    m_writer.WriteData<bool>(value);
-}
-
-void ObjectWriter::FieldFloat16(const DataTag& tag, uint16_t value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Float16);
-    m_writer.WriteData<uint16_t>(value);
-}
-
-void ObjectWriter::FieldFloat32(const DataTag& tag, float value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Float32);
-    m_writer.WriteData<uint32_t>(std::bit_cast<uint32_t>(value));
-}
-
-void ObjectWriter::FieldFloat64(const DataTag& tag, double value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Float64);
-    m_writer.WriteData<uint64_t>(std::bit_cast<uint64_t>(value));
+void ObjectWriter::Field(const DataTag& tag, const void* data, size_t size) noexcept {
+    m_writer.WriteFieldHeader(tag, DataType::Binary);
+    m_writer.WriteData(static_cast<const uint8_t*>(data), size);
 }
 
 void ObjectWriter::FieldUUID(const DataTag& tag, const void* uuid) noexcept {
     m_writer.WriteFieldHeader(tag, DataType::UUID);
     m_writer.WriteData(uuid, 16);
-}
-
-void ObjectWriter::FieldString(const DataTag& tag, std::string_view value) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::String);
-    m_writer.WriteString(value);
-}
-
-void ObjectWriter::FieldBinary(const DataTag& tag, const void* data, size_t size) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::Binary);
-    m_writer.WriteBinary(data, size);
 }
 
 ObjectWriter ObjectWriter::FieldObject(const DataTag& tag) noexcept {
@@ -242,80 +197,20 @@ ObjectWriter ObjectWriter::FieldObject(const DataTag& tag) noexcept {
 // Array field methods
 // ---------------------------------
 
-template <typename Type>
-inline void ObjectWriter::FieldArray(const DataTag& tag, DataType array_type, const Type* data, uint32_t length) noexcept {
-    m_writer.WriteFieldHeader(tag, array_type);
-
-    // Write array length and array data
-    FieldSize size = length * sizeof(Type);
-    m_writer.WriteData<FieldSize>(size);
-    BufferOffset offset = m_writer.WriteData(data, size);
-
-    AdjustArrayEndianess<sizeof(Type)>(m_writer.GetBufferPointer(offset), length);
-}
-
-void ObjectWriter::FieldArrayInt8(const DataTag& tag, const int8_t* data, uint32_t length) noexcept {
-    FieldArray<int8_t>(tag, DataType::Int8Array, data, length);
-}
-
-void ObjectWriter::FieldArrayInt16(const DataTag& tag, const int16_t* data, uint32_t length) noexcept {
-    FieldArray<int16_t>(tag, DataType::Int16Array, data, length);
-}
-
-void ObjectWriter::FieldArrayInt32(const DataTag& tag, const int32_t* data, uint32_t length) noexcept {
-    FieldArray<int32_t>(tag, DataType::Int32Array, data, length);
-}
-
-void ObjectWriter::FieldArrayInt64(const DataTag& tag, const int64_t* data, uint32_t length) noexcept {
-    FieldArray<int64_t>(tag, DataType::Int64Array, data, length);
-}
-
-void ObjectWriter::FieldArrayUInt8(const DataTag& tag, const uint8_t* data, uint32_t length) noexcept {
-    FieldArray<uint8_t>(tag, DataType::UInt8Array, data, length);
-}
-
-void ObjectWriter::FieldArrayUInt16(const DataTag& tag, const uint16_t* data, uint32_t length) noexcept {
-    FieldArray<uint16_t>(tag, DataType::UInt16Array, data, length);
-}
-
-void ObjectWriter::FieldArrayUInt32(const DataTag& tag, const uint32_t* data, uint32_t length) noexcept {
-    FieldArray<uint32_t>(tag, DataType::UInt32Array, data, length);
-}
-
-void ObjectWriter::FieldArrayUInt64(const DataTag& tag, const uint64_t* data, uint32_t length) noexcept {
-    FieldArray<uint64_t>(tag, DataType::UInt64Array, data, length);
-}
-
-void ObjectWriter::FieldArrayBoolean(const DataTag& tag, const bool* data, uint32_t length) noexcept {
-    FieldArray<bool>(tag, DataType::BooleanArray, data, length);
-}
-
-void ObjectWriter::FieldArrayFloat16(const DataTag& tag, const uint16_t* data, uint32_t length) noexcept {
-    FieldArray<uint16_t>(tag, DataType::Float16Array, data, length);
-}
-
-void ObjectWriter::FieldArrayFloat32(const DataTag& tag, const float* data, uint32_t length) noexcept {
-    FieldArray<uint32_t>(tag, DataType::Float32Array, reinterpret_cast<const uint32_t*>(data), length);
-}
-
-void ObjectWriter::FieldArrayFloat64(const DataTag& tag, const double* data, uint32_t length) noexcept {
-    FieldArray<uint64_t>(tag, DataType::Float64Array, reinterpret_cast<const uint64_t*>(data), length);
-}
-
 StringArrayWriter ObjectWriter::FieldStringArray(const DataTag& tag) noexcept {
     m_writer.WriteFieldHeader(tag, DataType::StringArray);
     return StringArrayWriter(*this);
 }
 
-void ObjectWriter::FieldStringArray(const DataTag& tag, const std::string_view* data, uint32_t length) noexcept {
+void ObjectWriter::FieldStringArray(const DataTag& tag, std::span<const std::string_view> data) noexcept {
     m_writer.WriteFieldHeader(tag, DataType::StringArray);
 
     // Write array size
     size_t offset = m_writer.ReserveDataSizeField();
 
     // Write each string in the array
-    for (uint32_t i = 0; i < length; ++i) {
-        m_writer.WriteString(data[i]);
+    for (const auto& str : data) {
+        m_writer.WriteString(str);
     }
 
     m_writer.WriteDataSizeField(offset);
@@ -326,138 +221,14 @@ BinaryArrayWriter ObjectWriter::FieldBinaryArray(const DataTag& tag) noexcept {
     return BinaryArrayWriter(*this);
 }
 
-void ObjectWriter::FieldBinaryArray(const DataTag& tag, const void* const* data, const uint32_t* sizes, uint32_t length) noexcept {
-    m_writer.WriteFieldHeader(tag, DataType::BinaryArray);
-
-    // Write array size
-    size_t offset = m_writer.ReserveDataSizeField();
-
-    // Write each binary blob in the array
-    for (uint32_t i = 0; i < length; ++i) {
-        m_writer.WriteBinary(data[i], sizes[i]);
-    }
-
-    m_writer.WriteDataSizeField(offset);
-}
-
 ObjectArrayWriter ObjectWriter::FieldObjectArray(const DataTag& tag) noexcept {
     m_writer.WriteFieldHeader(tag, DataType::ObjectArray);
     return ObjectArrayWriter(*this);
 }
 
 // ---------------------------------
-// Field vectors
+// Vector field methods
 // ---------------------------------
-
-template <typename Type, uint32_t dim>
-    requires std::is_arithmetic<Type>::value && (dim >= 2) && (dim <= 4)
-void ObjectWriter::FieldVector(const DataTag& tag, DataType vector_type, const Type* data) noexcept {
-    m_writer.WriteFieldHeader(tag, vector_type);
-    BufferOffset offset = m_writer.WriteData(data, sizeof(Type) * dim);
-    AdjustArrayEndianess<sizeof(Type)>(m_writer.GetBufferPointer(offset), dim);
-}
-
-// Vector 2
-
-void ObjectWriter::FieldVector2i8(const DataTag& tag, const int8_t* data) noexcept {
-    FieldVector<int8_t, 2>(tag, DataType::Vector2i8, data);
-}
-
-void ObjectWriter::FieldVector2i16(const DataTag& tag, const int16_t* data) noexcept {
-    FieldVector<int16_t, 2>(tag, DataType::Vector2i16, data);
-}
-
-void ObjectWriter::FieldVector2i32(const DataTag& tag, const int32_t* data) noexcept {
-    FieldVector<int32_t, 2>(tag, DataType::Vector2i32, data);
-}
-
-void ObjectWriter::FieldVector2i64(const DataTag& tag, const int64_t* data) noexcept {
-    FieldVector<int64_t, 2>(tag, DataType::Vector2i64, data);
-}
-
-void ObjectWriter::FieldVector2b(const DataTag& tag, const bool* data) noexcept {
-    FieldVector<bool, 2>(tag, DataType::Vector2b, data);
-}
-
-void ObjectWriter::FieldVector2f16(const DataTag& tag, const uint16_t* data) noexcept {
-    FieldVector<uint16_t, 2>(tag, DataType::Vector2f16, data);
-}
-
-void ObjectWriter::FieldVector2f32(const DataTag& tag, const float* data) noexcept {
-    FieldVector<uint32_t, 2>(tag, DataType::Vector2f32, reinterpret_cast<const uint32_t*>(data));
-}
-
-void ObjectWriter::FieldVector2f64(const DataTag& tag, const double* data) noexcept {
-    FieldVector<uint64_t, 2>(tag, DataType::Vector2f64, reinterpret_cast<const uint64_t*>(data));
-}
-
-// Vector 3
-
-void ObjectWriter::FieldVector3i8(const DataTag& tag, const int8_t* data) noexcept {
-    FieldVector<int8_t, 3>(tag, DataType::Vector3i8, data);
-}
-
-void ObjectWriter::FieldVector3i16(const DataTag& tag, const int16_t* data) noexcept {
-    FieldVector<int16_t, 3>(tag, DataType::Vector3i16, data);
-}
-
-void ObjectWriter::FieldVector3i32(const DataTag& tag, const int32_t* data) noexcept {
-    FieldVector<int32_t, 3>(tag, DataType::Vector3i32, data);
-}
-
-void ObjectWriter::FieldVector3i64(const DataTag& tag, const int64_t* data) noexcept {
-    FieldVector<int64_t, 3>(tag, DataType::Vector3i64, data);
-}
-
-void ObjectWriter::FieldVector3b(const DataTag& tag, const bool* data) noexcept {
-    FieldVector<bool, 3>(tag, DataType::Vector3b, data);
-}
-
-void ObjectWriter::FieldVector3f16(const DataTag& tag, const uint16_t* data) noexcept {
-    FieldVector<uint16_t, 3>(tag, DataType::Vector3f16, data);
-}
-
-void ObjectWriter::FieldVector3f32(const DataTag& tag, const float* data) noexcept {
-    FieldVector<uint32_t, 3>(tag, DataType::Vector3f32, reinterpret_cast<const uint32_t*>(data));
-}
-
-void ObjectWriter::FieldVector3f64(const DataTag& tag, const double* data) noexcept {
-    FieldVector<uint64_t, 3>(tag, DataType::Vector3f64, reinterpret_cast<const uint64_t*>(data));
-}
-
-// Vector 4
-
-void ObjectWriter::FieldVector4i8(const DataTag& tag, const int8_t* data) noexcept {
-    FieldVector<int8_t, 4>(tag, DataType::Vector4i8, data);
-}
-
-void ObjectWriter::FieldVector4i16(const DataTag& tag, const int16_t* data) noexcept {
-    FieldVector<int16_t, 4>(tag, DataType::Vector4i16, data);
-}
-
-void ObjectWriter::FieldVector4i32(const DataTag& tag, const int32_t* data) noexcept {
-    FieldVector<int32_t, 4>(tag, DataType::Vector4i32, data);
-}
-
-void ObjectWriter::FieldVector4i64(const DataTag& tag, const int64_t* data) noexcept {
-    FieldVector<int64_t, 4>(tag, DataType::Vector4i64, data);
-}
-
-void ObjectWriter::FieldVector4b(const DataTag& tag, const bool* data) noexcept {
-    FieldVector<bool, 4>(tag, DataType::Vector4b, data);
-}
-
-void ObjectWriter::FieldVector4f16(const DataTag& tag, const uint16_t* data) noexcept {
-    FieldVector<uint16_t, 4>(tag, DataType::Vector4f16, data);
-}
-
-void ObjectWriter::FieldVector4f32(const DataTag& tag, const float* data) noexcept {
-    FieldVector<uint32_t, 4>(tag, DataType::Vector4f32, reinterpret_cast<const uint32_t*>(data));
-}
-
-void ObjectWriter::FieldVector4f64(const DataTag& tag, const double* data) noexcept {
-    FieldVector<uint64_t, 4>(tag, DataType::Vector4f64, reinterpret_cast<const uint64_t*>(data));
-}
 
 // ---------------------------------
 // ArrayWriter
@@ -467,6 +238,27 @@ ArrayWriter::ArrayWriter(ObjectWriter& obj) noexcept
     : m_obj(obj),
       m_is_finished(false) {
     m_array_size_pos = obj.GetWriter().ReserveDataSizeField();
+}
+
+// RAII: move constructor
+ArrayWriter::ArrayWriter(ArrayWriter&& other) noexcept
+    : m_obj(other.m_obj),
+      m_array_size_pos(other.m_array_size_pos),
+      m_is_finished(other.m_is_finished) {
+    other.m_is_finished = true;
+}
+
+// RAII: move assignment
+ArrayWriter& ArrayWriter::operator=(ArrayWriter&& other) noexcept {
+    if (this != &other) {
+        if (!m_is_finished) {
+            Finish();
+        }
+        m_array_size_pos = other.m_array_size_pos;
+        m_is_finished = other.m_is_finished;
+        other.m_is_finished = true;
+    }
+    return *this;
 }
 
 void ArrayWriter::Finish() noexcept {
@@ -480,8 +272,12 @@ void StringArrayWriter::AddElement(std::string_view element) noexcept {
     m_obj.GetWriter().WriteString(element);
 }
 
-void BinaryArrayWriter::AddElement(const void* element, FieldSize size) noexcept {
-    m_obj.GetWriter().WriteBinary(element, size);
+void BinaryArrayWriter::AddElement(std::span<const uint8_t> data) noexcept {
+    m_obj.GetWriter().WriteBinary(data);
+}
+
+void BinaryArrayWriter::AddElement(const void* data, FieldSize size) noexcept {
+    m_obj.GetWriter().WriteData(static_cast<const uint8_t*>(data), size);
 }
 
 ObjectWriter ObjectArrayWriter::CreateElement() noexcept {

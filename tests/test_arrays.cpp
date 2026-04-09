@@ -48,7 +48,7 @@ TEST(ArraysTest, Int32ArrayReadWrite) {
     auto& root = writer.RootObject();
 
     int32_t int_data[] = {10, 20, 30, 40, 50};
-    root.FieldArrayInt32(TAG_INT_ARRAY, int_data, 5);
+    root.FieldArray<int32_t>(TAG_INT_ARRAY, std::span<const int32_t>(int_data, 5));
 
     writer.Finish();
 
@@ -57,7 +57,7 @@ TEST(ArraysTest, Int32ArrayReadWrite) {
 
     ASSERT_TRUE(read_root.IsValid());
 
-    auto int_array = read_root.ReadInt32Array(TAG_INT_ARRAY);
+    auto int_array = read_root.ReadArray<int32_t>(TAG_INT_ARRAY);
     ASSERT_FALSE(int_array.empty());
     ASSERT_EQ(int_array.size(), 5);
 
@@ -102,7 +102,7 @@ TEST(ArraysTest, Float32ArrayReadWrite) {
     auto& root = writer.RootObject();
 
     float float_data[] = {1.1f, 2.2f, 3.3f};
-    root.FieldArrayFloat32(TAG_FLOAT_ARRAY, float_data, 3);
+    root.FieldArray<float>(TAG_FLOAT_ARRAY, std::span<const float>(float_data, 3));
 
     writer.Finish();
 
@@ -111,7 +111,7 @@ TEST(ArraysTest, Float32ArrayReadWrite) {
 
     ASSERT_TRUE(read_root.IsValid());
 
-    auto float_array = read_root.ReadFloat32Array(TAG_FLOAT_ARRAY);
+    auto float_array = read_root.ReadArray<float>(TAG_FLOAT_ARRAY);
     ASSERT_FALSE(float_array.empty());
     ASSERT_EQ(float_array.size(), 3);
 
@@ -128,13 +128,13 @@ TEST(ArraysTest, BinaryArrayReadWrite) {
     auto binary_array = root.FieldBinaryArray(TAG_BINARY_ARRAY);
 
     uint8_t data1[] = {0x01, 0x02, 0x03};
-    binary_array.AddElement(data1, 3);
+    binary_array.AddElement(std::span<const uint8_t>(data1, 3));
 
     uint8_t data2[] = {0xAA, 0xBB, 0xCC, 0xDD};
-    binary_array.AddElement(data2, 4);
+    binary_array.AddElement(std::span<const uint8_t>(data2, 4));
 
     uint8_t data3[] = {0xFF};
-    binary_array.AddElement(data3, 1);
+    binary_array.AddElement(std::span<const uint8_t>(data3, 1));
 
     binary_array.Finish();
 
@@ -172,10 +172,10 @@ TEST(ArraysTest, PointerAPIReadWrite) {
     auto& root = writer.RootObject();
 
     int32_t int_data[] = {100, 200, 300};
-    root.FieldArrayInt32(TAG_INT_ARRAY, int_data, 3);
+    root.FieldArray<int32_t>(TAG_INT_ARRAY, int_data, 3);
 
     float float_data[] = {1.5f, 2.5f};
-    root.FieldArrayFloat32(TAG_FLOAT_ARRAY, float_data, 2);
+    root.FieldArray<float>(TAG_FLOAT_ARRAY, float_data, 2);
 
     writer.Finish();
 
@@ -186,7 +186,7 @@ TEST(ArraysTest, PointerAPIReadWrite) {
 
     // Test int32 array with pointer API
     uint32_t int_length;
-    const int32_t* int_array_ptr = read_root.ReadInt32Array(TAG_INT_ARRAY, int_length);
+    const int32_t* int_array_ptr = read_root.ReadArray<int32_t>(TAG_INT_ARRAY, int_length);
     ASSERT_NE(int_array_ptr, nullptr);
     ASSERT_EQ(int_length, 3);
     EXPECT_EQ(int_array_ptr[0], 100);
@@ -195,7 +195,7 @@ TEST(ArraysTest, PointerAPIReadWrite) {
 
     // Test float32 array with pointer API
     uint32_t float_length;
-    const float* float_array_ptr = read_root.ReadFloat32Array(TAG_FLOAT_ARRAY, float_length);
+    const float* float_array_ptr = read_root.ReadArray<float>(TAG_FLOAT_ARRAY, float_length);
     ASSERT_NE(float_array_ptr, nullptr);
     ASSERT_EQ(float_length, 2);
     EXPECT_NEAR(float_array_ptr[0], 1.5f, 0.0001f);
@@ -203,7 +203,7 @@ TEST(ArraysTest, PointerAPIReadWrite) {
 
     // Test non-existent array
     uint32_t non_existent_length;
-    const int32_t* non_existent_ptr = read_root.ReadInt32Array("non_existent_array", non_existent_length);
+    const int32_t* non_existent_ptr = read_root.ReadArray<int32_t>("non_existent_array", non_existent_length);
     EXPECT_EQ(non_existent_ptr, nullptr);
     EXPECT_EQ(non_existent_length, 0);
 }
@@ -213,7 +213,7 @@ TEST(ArraysTest, ImplicitSTLArrayReadWrite) {
     auto& root = writer.RootObject();
 
     std::vector<int32_t> data = {10, 20, 30, 40};
-    root.FieldArrayInt32(TAG_INT_ARRAY, data);
+    root.FieldArray<int32_t>(TAG_INT_ARRAY, std::span<const int32_t>(data.data(), data.size()));
 
     writer.Finish();
 
@@ -222,7 +222,7 @@ TEST(ArraysTest, ImplicitSTLArrayReadWrite) {
 
     ASSERT_TRUE(read_root.IsValid());
 
-    std::span<const int32_t> int_array = read_root.ReadInt32Array(TAG_INT_ARRAY);
+    std::span<const int32_t> int_array = read_root.ReadArray<int32_t>(TAG_INT_ARRAY);
     ASSERT_EQ(int_array.size(), data.size());
     for (size_t i = 0; i < int_array.size(); i++) {
         EXPECT_EQ(int_array[i], data[i]);
@@ -235,7 +235,7 @@ TEST(ArraysTest, EmptyArrays) {
 
     // Empty int array
     int32_t empty_data[] = {0};  // Dummy data, size is set to 0
-    root.FieldArrayInt32(TAG_INT_ARRAY, empty_data, 0);
+    root.FieldArray<int32_t>(TAG_INT_ARRAY, empty_data, 0);
 
     // Empty string array
     auto string_array = root.FieldStringArray(TAG_STRING_ARRAY);
@@ -248,7 +248,7 @@ TEST(ArraysTest, EmptyArrays) {
 
     ASSERT_TRUE(read_root.IsValid());
 
-    auto int_array = read_root.ReadInt32Array(TAG_INT_ARRAY);
+    auto int_array = read_root.ReadArray<int32_t>(TAG_INT_ARRAY);
     EXPECT_TRUE(int_array.empty());
 
     auto str_array = read_root.ReadStringArray(TAG_STRING_ARRAY);
@@ -264,7 +264,7 @@ TEST(ArraysTest, NonExistentArray) {
     Writer writer(true);
     auto& root = writer.RootObject();
 
-    root.FieldInt64("dummy_data", 100);
+    root.Field<int64_t>("dummy_data", 100);
 
     writer.Finish();
 
@@ -273,11 +273,11 @@ TEST(ArraysTest, NonExistentArray) {
 
     ASSERT_TRUE(read_root.IsValid());
 
-    auto int_array = read_root.ReadInt32Array(TAG_INT_ARRAY);
+    auto int_array = read_root.ReadArray<int32_t>(TAG_INT_ARRAY);
     EXPECT_TRUE(int_array.empty());
 
     uint32_t length;
-    const int32_t* int_array_ptr = read_root.ReadInt32Array(TAG_INT_ARRAY, length);
+    const int32_t* int_array_ptr = read_root.ReadArray<int32_t>(TAG_INT_ARRAY, length);
     EXPECT_EQ(int_array_ptr, nullptr);
     EXPECT_EQ(length, 0);
 

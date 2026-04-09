@@ -26,7 +26,6 @@
 #pragma once
 
 #include <cstdint>
-#include <type_traits>
 
 namespace tbf {
 
@@ -48,7 +47,6 @@ enum class DataType : uint8_t {
     // Primitive types
 
     SignedInteger = 0b0000,
-    UnsignedInteger = 0b0100,
     FloatingPointAndBool = 0b1000,
     NonPrimitive = 0b1100,
 
@@ -56,11 +54,6 @@ enum class DataType : uint8_t {
     Int16 = Raw | SignedInteger | 0b01,
     Int32 = Raw | SignedInteger | 0b10,
     Int64 = Raw | SignedInteger | 0b11,
-
-    UInt8 = Raw | UnsignedInteger | 0b00,
-    UInt16 = Raw | UnsignedInteger | 0b01,
-    UInt32 = Raw | UnsignedInteger | 0b10,
-    UInt64 = Raw | UnsignedInteger | 0b11,
 
     Boolean = Raw | FloatingPointAndBool | 0b00,
     Float16 = Raw | FloatingPointAndBool | 0b01,
@@ -114,11 +107,6 @@ enum class DataType : uint8_t {
     Int16Array = Array | Int16,
     Int32Array = Array | Int32,
     Int64Array = Array | Int64,
-
-    UInt8Array = Array | UInt8,
-    UInt16Array = Array | UInt16,
-    UInt32Array = Array | UInt32,
-    UInt64Array = Array | UInt64,
 
     BooleanArray = Array | Boolean,
     Float16Array = Array | Float16,
@@ -187,42 +175,83 @@ inline constexpr bool IsValidDataType(DataType type) {
     }
 }
 
-template <typename Type>
-    requires std::is_integral<Type>::value
-consteval DataType IntegerType() {
-    if constexpr (std::is_signed<Type>::value) {
-        switch (sizeof(Type)) {
-            case 1: return DataType::Int8;
-            case 2: return DataType::Int16;
-            case 4: return DataType::Int32;
-            case 8: return DataType::Int64;
-        }
-    } else {
-        switch (sizeof(Type)) {
-            case 1: return DataType::UInt8;
-            case 2: return DataType::UInt16;
-            case 4: return DataType::UInt32;
-            case 8: return DataType::UInt64;
-        }
-    }
+template <typename T>
+struct Type;
+
+// Specializations for primitive types
+template <>
+struct Type<int8_t> {
+    static constexpr DataType type = DataType::Int8;
+    static constexpr DataType array_type = DataType::Int8Array;
+};
+
+template <>
+struct Type<int16_t> {
+    static constexpr DataType type = DataType::Int16;
+    static constexpr DataType array_type = DataType::Int16Array;
+};
+
+template <>
+struct Type<int32_t> {
+    static constexpr DataType type = DataType::Int32;
+    static constexpr DataType array_type = DataType::Int32Array;
+};
+
+template <>
+struct Type<int64_t> {
+    static constexpr DataType type = DataType::Int64;
+    static constexpr DataType array_type = DataType::Int64Array;
+};
+
+template <>
+struct Type<bool> {
+    static constexpr DataType type = DataType::Boolean;
+    static constexpr DataType array_type = DataType::BooleanArray;
+};
+
+template <>
+struct Type<float> {
+    static constexpr DataType type = DataType::Float32;
+    static constexpr DataType array_type = DataType::Float32Array;
+};
+
+template <>
+struct Type<double> {
+    static constexpr DataType type = DataType::Float64;
+    static constexpr DataType array_type = DataType::Float64Array;
+};
+
+// Concepts for constraining templates
+template <typename T>
+concept Primitive = requires { Type<T>::type; };
+
+template <typename T>
+concept ArrayElement = requires { Type<T>::array_type; };
+
+template <int32_t size>
+concept VectorSize = (size >= 2) && (size <= 4);
+
+// Vector type resolution
+template <uint32_t size, typename T>
+    requires Primitive<T> && VectorSize<size>
+consteval DataType VectorType() {
+    // Vector dimensions are encoded as: Vector2=0x20, Vector3=0x30, Vector4=0x40
+    constexpr uint8_t dim_classification = size << 4;
+    return static_cast<DataType>(dim_classification | static_cast<uint8_t>(Type<T>::type));
 }
 
 inline constexpr uint32_t DataTypeSize(DataType type) {
     switch (type) {
         case DataType::Int8:
-        case DataType::UInt8:
         case DataType::Boolean:
             return 1;
         case DataType::Int16:
-        case DataType::UInt16:
         case DataType::Float16:
             return 2;
         case DataType::Int32:
-        case DataType::UInt32:
         case DataType::Float32:
             return 4;
         case DataType::Int64:
-        case DataType::UInt64:
         case DataType::Float64:
             return 8;
         case DataType::UUID:
