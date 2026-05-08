@@ -27,8 +27,8 @@ target_include_directories(tbf PUBLIC
 
 # Apply flags based on build type
 target_compile_options(tbf PRIVATE
-   $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra -Wpedantic>
-   $<$<CONFIG:Release>:-O3 -DNDEBUG -march=native -mtune=native -flto -funroll-loops>
+    $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra -Wpedantic -fno-exceptions>
+    $<$<CONFIG:Release>:-O3 -DNDEBUG -funroll-loops -fno-exceptions>
 )
 
 # ----------- Test Configuration -----------

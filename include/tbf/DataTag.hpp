@@ -26,18 +26,18 @@
 #pragma once
 
 #include <cstdint>
-#include <stdexcept>
+#include <cstdlib>
 #include <string_view>
 
 namespace tbf {
 
 constexpr uint32_t MAX_TAG_NAME_LENGTH = 0xFF;  // 255 characters
 
-inline consteval bool IsValidTagChar(char c) {
+inline consteval bool IsValidTagChar(char c) noexcept {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
 }
 
-inline consteval bool IsTagNameValid(std::string_view name) {
+inline consteval bool IsTagNameValid(std::string_view name) noexcept {
     if (name.empty() || name.size() > MAX_TAG_NAME_LENGTH) {
         return false;
     }
@@ -51,7 +51,7 @@ inline consteval bool IsTagNameValid(std::string_view name) {
     return true;
 }
 
-consteval uint32_t TagNameHash(std::string_view str) {
+consteval uint32_t TagNameHash(std::string_view str) noexcept {
     // FNV-1a hash optimized for snake_case identifiers (a-z, A-Z, 0-9, _)
     // Using 32-bit FNV-1a constants
     uint32_t hash = 2166136261u;
@@ -90,22 +90,22 @@ class DataTag {
     std::string_view name;
 
    private:
-    void consteval Validate() const {
+    void consteval Validate() const noexcept {
         if (!IsTagNameValid(name)) {
-            throw std::invalid_argument("Invalid tag name");
+            std::abort();
         }
 
         if (id == INVALID_ID) {
-            throw std::invalid_argument("Tag ID cannot be zero");
+            std::abort();
         }
     }
 
    public:
-    consteval DataTag(const char* name) : id(static_cast<Id>(TagNameHash(name))), name(name) {
+    consteval DataTag(const char* name) noexcept : id(static_cast<Id>(TagNameHash(name))), name(name) {
         Validate();
     }
 
-    consteval DataTag(Id id, const char* name) : id(id), name(name) {
+    consteval DataTag(Id id, const char* name) noexcept : id(id), name(name) {
         Validate();
     }
 
